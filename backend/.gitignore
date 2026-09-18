@@ -1,0 +1,7 @@
+node_modules/
+.env
+uploads/attendance/*
+uploads/faces/*
+!uploads/attendance/.gitkeep
+!uploads/faces/.gitkeep
+*.log

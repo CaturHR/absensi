@@ -13,6 +13,9 @@ const { authMiddleware, adminOnly } = require('../middlewares/authMiddleware');
  * DELETE /api/locations/:id  - Hapus lokasi
  */
 
+// Lokasi aktif kantor/kampus (untuk user mobile validasi geofencing)
+router.get('/active', authMiddleware, locationController.getActiveLocation);
+
 router.get('/', authMiddleware, adminOnly, locationController.getAllLocations);
 router.get('/:id', authMiddleware, adminOnly, locationController.getLocationById);
 router.post('/', authMiddleware, adminOnly, locationController.createLocation);

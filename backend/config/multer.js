@@ -36,7 +36,10 @@ const createStorage = (destDir) => {
  */
 const imageFileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png'];
-  if (allowedMimes.includes(file.mimetype)) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExts = ['.jpg', '.jpeg', '.png'];
+
+  if (allowedMimes.includes(file.mimetype) || (allowedExts.includes(ext) && file.mimetype === 'application/octet-stream')) {
     cb(null, true);
   } else {
     cb(new Error('Hanya file gambar (JPEG, JPG, PNG) yang diizinkan.'), false);

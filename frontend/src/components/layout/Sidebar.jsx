@@ -4,12 +4,22 @@ import {
   Users,
   MapPin,
   ShieldCheck,
-  Building2,
-  Sparkles,
-  ChevronRight,
+  LogOut,
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, onSelectTab, isBackendOnline }) {
+export default function Sidebar({ activeTab, onSelectTab, isBackendOnline, onLogout }) {
+  // Ambil data admin dari localStorage
+  let adminName = 'Administrator';
+  let adminEmail = 'admin@absensi.com';
+  try {
+    const savedUser = localStorage.getItem('admin_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      adminName = user.name || 'Administrator';
+      adminEmail = user.email || 'admin@absensi.com';
+    }
+  } catch {}
+
   const menuItems = [
     {
       id: 'attendance',
@@ -135,21 +145,26 @@ export default function Sidebar({ activeTab, onSelectTab, isBackendOnline }) {
 
         {/* User Admin Info */}
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-9 h-9 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
-            <img
-              src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80"
-              alt="Admin Profil"
-              className="w-full h-full object-cover"
-            />
+          <div className="w-9 h-9 rounded-full bg-moss/15 flex items-center justify-center text-moss font-bold text-sm border border-moss/20">
+            {adminName.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <span className="block text-xs font-bold text-slate-800 truncate">
-              Nadia Utami (Lead HR)
+              {adminName}
             </span>
-            <span className="block text-[11px] text-slate-400 font-mono">
-              admin@perusahaan.co.id
+            <span className="block text-[11px] text-slate-400 font-mono truncate">
+              {adminEmail}
             </span>
           </div>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              title="Keluar"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </aside>

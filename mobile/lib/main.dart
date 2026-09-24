@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'config/api_constants.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/profile_screen.dart';
 
 List<CameraDescription> cameras = [];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inisialisasi API Constants (baca custom server URL jika ada)
+  await ApiConstants.init();
+
+  // Inisialisasi locale formatting Indonesia
+  try {
+    await initializeDateFormatting('id_ID', null);
+  } catch (e) {
+    debugPrint('Format tanggal id_ID gagal diinisialisasi: $e');
+  }
+
+  // Deteksi kamera perangkat
   try {
     cameras = await availableCameras();
   } catch (e) {
@@ -58,7 +72,6 @@ class MainNavigationWrapper extends StatefulWidget {
 
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
-
   late final List<Widget> _pages;
 
   @override
@@ -67,6 +80,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     _pages = [
       AttendanceScreen(cameras: widget.cameras),
       const HistoryScreen(),
+      ProfileScreen(cameras: widget.cameras),
     ];
   }
 
@@ -97,6 +111,11 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history, color: Color(0xFF365C4A)),
             label: 'Riwayat',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person, color: Color(0xFF365C4A)),
+            label: 'Profil',
           ),
         ],
       ),

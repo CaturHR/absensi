@@ -18,7 +18,19 @@ const compareFaces = async (imagePath1, imagePath2) => {
   const apiSecret = process.env.FACEPP_API_SECRET;
   const compareUrl = process.env.FACEPP_COMPARE_URL;
 
-  if (!apiKey || !apiSecret) {
+  // Fallback simulasi jika key belum diset atau diaktifkan untuk development/testing
+  if (!apiKey || !apiSecret || process.env.MOCK_FACE_RECOGNITION === 'true') {
+    if (process.env.NODE_ENV === 'development' || process.env.MOCK_FACE_RECOGNITION === 'true') {
+      console.log('ℹ️ [Dev Mode] Simulasi pengenalan wajah aktif (Confidence: 94.8%).');
+      return {
+        confidence: 94.8,
+        thresholds: {
+          '1e-3': 60.0,
+          '1e-4': 70.0,
+          '1e-5': 80.0,
+        },
+      };
+    }
     throw new Error('Face++ API key atau secret belum dikonfigurasi.');
   }
 

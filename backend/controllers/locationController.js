@@ -5,6 +5,28 @@ const Location = require('../models/Location');
  */
 const locationController = {
   /**
+   * GET /api/locations/active
+   * Ambil lokasi aktif saat ini (bisa diakses oleh user/karyawan).
+   */
+  getActiveLocation: async (req, res, next) => {
+    try {
+      const location = await Location.getActive();
+      if (!location) {
+        return res.status(404).json({
+          success: false,
+          message: 'Lokasi kantor aktif belum dikonfigurasi.',
+        });
+      }
+      return res.status(200).json({
+        success: true,
+        data: location,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * GET /api/locations
    */
   getAllLocations: async (req, res, next) => {

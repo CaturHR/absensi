@@ -245,4 +245,25 @@ export const MOCK_ATTENDANCE_LOGS = [
     notes: "Verifikasi biometrik & geofence sukses.",
     created_at: "2026-09-20T08:29:40.000Z",
   },
+  {
+    id: 104,
+    user_id: 4,
+    user_name: "Dewi Anggraini",
+    user_nip: "PEG-2023-0104",
+    user_email: "dewi.anggraini@perusahaan.co.id",
+    user_role: "user",
+    department: "Human Resources",
+    latitude: -6.208750,
+    longitude: 106.845610,
+    distance: 15,
+    face_confidence: 41.5, // Wajah tidak cocok (< 60%)
+    status: "Wajah Tidak Cocok",
+    location_id: 1,
+    location_name: "Kantor Pusat Jakarta",
+    // Foto absen berbeda orang / pencahayaan buruk
+    photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80",
+    master_photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+    notes: "Kemiripan wajah hanya 41.5% (Threshold min: 60%). Kemungkinan wajah terhalang masker atau orang lain.",
+    created_at: "2026-09-21T08:24:19.000Z",
+  },
 ];

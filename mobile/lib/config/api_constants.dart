@@ -19,11 +19,18 @@ class ApiConstants {
     }
 
     if (kIsWeb) {
+      try {
+        final host = Uri.base.host;
+        if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
+          return 'http://$host:5000';
+        }
+      } catch (_) {}
       return 'http://localhost:5000';
     }
     try {
       if (Platform.isAndroid) {
-        return 'http://10.0.2.2:5000';
+        // Jika di HP fisik, arahkan ke IP Wi-Fi PC (192.168.0.233)
+        return 'http://192.168.0.233:5000';
       }
     } catch (_) {}
     return 'http://localhost:5000';

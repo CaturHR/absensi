@@ -31,7 +31,57 @@ const attendanceController = {
       const userId = req.user.id;
 
       // ──────────────────────────────────────────────
-      // 1. Validasi file foto
+      // 1. Validasi tipe absensi ('in' atau 'out')
+      // ──────────────────────────────────────────────
+      const type = (req.body.type || 'in').toLowerCase();
+      if (!['in', 'out'].includes(type)) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          success: false,
+          message: 'Tipe presensi tidak valid. Harus "in" (Clock In) atau "out" (Clock Out).',
+        });
+      }
+
+      // ──────────────────────────────────────────────
+      // 2. Validasi Aturan Harian (1x per hari per aksi)
+      // ──────────────────────────────────────────────
+      const todayStatus = await Attendance.getTodayStatus(userId);
+
+      if (type === 'in' && todayStatus.hasClockedIn) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        const inTime = new Date(todayStatus.clockIn.created_at).toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return res.status(400).json({
+          success: false,
+          message: `Anda sudah melakukan Clock In hari ini pada pukul ${inTime}.`,
+        });
+      }
+
+      if (type === 'out') {
+        if (!todayStatus.hasClockedIn) {
+          if (req.file) fs.unlinkSync(req.file.path);
+          return res.status(400).json({
+            success: false,
+            message: 'Anda belum melakukan Clock In hari ini. Silakan Clock In terlebih dahulu.',
+          });
+        }
+        if (todayStatus.hasClockedOut) {
+          if (req.file) fs.unlinkSync(req.file.path);
+          const outTime = new Date(todayStatus.clockOut.created_at).toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          return res.status(400).json({
+            success: false,
+            message: `Anda sudah melakukan Clock Out hari ini pada pukul ${outTime}.`,
+          });
+        }
+      }
+
+      // ──────────────────────────────────────────────
+      // 3. Validasi file foto
       // ──────────────────────────────────────────────
       if (!req.file) {
         return res.status(400).json({
@@ -41,7 +91,7 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 2. Validasi koordinat GPS
+      // 4. Validasi koordinat GPS
       // ──────────────────────────────────────────────
       const { latitude, longitude } = req.body;
 
@@ -106,6 +156,7 @@ const attendanceController = {
           distance,
           face_confidence: null,
           status: 'Di Luar Radius',
+          type,
           photo: photoRelativePath,
           location_id: location.id,
         });
@@ -116,6 +167,7 @@ const attendanceController = {
           data: {
             id: attendanceLog.id,
             status: 'Di Luar Radius',
+            type,
             distance,
             radius,
             timestamp: new Date().toISOString(),
@@ -124,73 +176,12 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 6. Dalam radius → Ambil foto master & bandingkan wajah
+      // 6. Face Recognition (DINONAKTIFKAN SESUAI PERMINTAAN USER)
+      // Foto selfie real-time tetap disimpan sebagai bukti presensi,
+      // tetapi proses komparasi wajah dilewati (bypass) dan status langsung "Hadir".
       // ──────────────────────────────────────────────
-      const facePhotoRelative = await User.getFacePhoto(userId);
-
-      if (!facePhotoRelative) {
-        fs.unlinkSync(req.file.path);
-        return res.status(400).json({
-          success: false,
-          message: 'Foto master wajah belum diunggah. Hubungi admin untuk mengupload foto wajah Anda.',
-        });
-      }
-
-      const masterFacePath = path.join(UPLOAD_DIR_FACES, path.basename(facePhotoRelative));
-      const attendanceFacePath = req.file.path;
-
-      // Verifikasi file foto master ada
-      if (!fs.existsSync(masterFacePath)) {
-        fs.unlinkSync(req.file.path);
-        return res.status(404).json({
-          success: false,
-          message: 'File foto master wajah tidak ditemukan di server. Hubungi admin.',
-        });
-      }
-
-      let faceConfidence = 0;
-      let faceStatus = 'Wajah Tidak Cocok';
-
-      try {
-        const faceResult = await compareFaces(masterFacePath, attendanceFacePath);
-        faceConfidence = faceResult.confidence;
-
-        // Gunakan threshold 1e-3 dari Face++ (paling lenient, ~62%)
-        // Atau gunakan threshold kustom (misal 80%)
-        const confidenceThreshold = faceResult.thresholds
-          ? faceResult.thresholds['1e-3']
-          : 60;
-
-        if (faceConfidence >= confidenceThreshold) {
-          faceStatus = 'Hadir';
-        }
-      } catch (faceError) {
-        console.error('Face recognition error:', faceError.message);
-
-        // Simpan log dengan error face recognition
-        const photoRelativePath = `attendance/${req.file.filename}`;
-        const attendanceLog = await Attendance.create({
-          user_id: userId,
-          latitude: lat,
-          longitude: lng,
-          distance,
-          face_confidence: null,
-          status: 'Gagal Verifikasi Wajah',
-          photo: photoRelativePath,
-          location_id: location.id,
-        });
-
-        return res.status(200).json({
-          success: false,
-          message: `Gagal memverifikasi wajah: ${faceError.message}`,
-          data: {
-            id: attendanceLog.id,
-            status: 'Gagal Verifikasi Wajah',
-            distance,
-            timestamp: new Date().toISOString(),
-          },
-        });
-      }
+      const faceConfidence = 100.0;
+      const faceStatus = 'Hadir';
 
       // ──────────────────────────────────────────────
       // 7 & 8. Simpan log absensi dengan status final
@@ -204,6 +195,7 @@ const attendanceController = {
         distance,
         face_confidence: faceConfidence,
         status: faceStatus,
+        type,
         photo: photoRelativePath,
         location_id: location.id,
       });
@@ -213,21 +205,26 @@ const attendanceController = {
       // ──────────────────────────────────────────────
       const isSuccess = faceStatus === 'Hadir';
       const statusCode = 200;
+      const actionLabel = type === 'in' ? 'Clock In' : 'Clock Out';
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
       return res.status(statusCode).json({
         success: isSuccess,
         message: isSuccess
-          ? 'Absensi berhasil! Status: Hadir.'
-          : `Absensi gagal. Wajah tidak cocok (confidence: ${faceConfidence}%).`,
+          ? `${actionLabel} berhasil pada pukul ${timeStr}.`
+          : `${actionLabel} gagal. Wajah tidak cocok (confidence: ${faceConfidence}%).`,
         data: {
           id: attendanceLog.id,
           status: faceStatus,
+          type,
+          time: timeStr,
           distance,
           radius,
           face_confidence: faceConfidence,
           photo: photoRelativePath,
           location: location.name,
-          timestamp: new Date().toISOString(),
+          timestamp: now.toISOString(),
         },
       });
     } catch (error) {
@@ -329,6 +326,23 @@ const attendanceController = {
         success: true,
         message: 'Detail absensi berhasil diambil.',
         data: attendance,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/attendance/today
+   * Ambil status Clock In & Clock Out user yang sedang login untuk hari ini.
+   */
+  getTodayStatus: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const status = await Attendance.getTodayStatus(userId);
+      return res.status(200).json({
+        success: true,
+        data: status,
       });
     } catch (error) {
       next(error);

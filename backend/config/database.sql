@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   distance DOUBLE DEFAULT NULL COMMENT 'Jarak ke lokasi kantor (meter)',
   face_confidence DOUBLE DEFAULT NULL COMMENT 'Confidence score face comparison (0-100)',
   status ENUM('Hadir', 'Di Luar Radius', 'Wajah Tidak Cocok', 'Gagal Verifikasi Wajah') NOT NULL,
+  type ENUM('in', 'out') DEFAULT 'in' COMMENT 'in = Clock In, out = Clock Out',
   photo VARCHAR(255) DEFAULT NULL COMMENT 'Path relatif ke foto absensi',
   location_id INT DEFAULT NULL COMMENT 'Lokasi kantor/kampus yang digunakan saat absensi',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

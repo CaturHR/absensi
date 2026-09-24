@@ -10,6 +10,11 @@ import {
   AlertCircle,
   Image as ImageIcon,
   Trash2,
+  RefreshCw,
+  RotateCw,
+  Video,
+  VideoOff,
+  Sparkles,
 } from 'lucide-react';
 import { createUser } from '../../services/api';
 
@@ -29,8 +34,109 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
-  // Reset form when modal opens
+  // Camera State
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [facingMode, setFacingMode] = useState('user');
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+    setCameraLoading(false);
+    setCameraError(null);
+  };
+
+  const startCamera = async (mode = facingMode) => {
+    stopCamera();
+    setCameraLoading(true);
+    setCameraError(null);
+    setIsCameraActive(true);
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Browser Anda tidak mendukung akses kamera secara langsung. Silakan gunakan opsi upload file.');
+      }
+
+      const constraints = {
+        video: {
+          facingMode: mode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (_) {}
+      }
+      setCameraLoading(false);
+    } catch (err) {
+      console.error('Camera access error:', err);
+      let message = 'Tidak dapat membuka kamera.';
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        message = 'Izin kamera ditolak. Harap izinkan akses kamera di pengaturan browser Anda.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        message = 'Perangkat kamera tidak terdeteksi pada sistem Anda.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        message = 'Kamera sedang digunakan oleh aplikasi lain.';
+      } else {
+        message = err.message || 'Gagal memulai kamera.';
+      }
+      setCameraError(message);
+      setCameraLoading(false);
+    }
+  };
+
+  const switchCamera = () => {
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode);
+    startCamera(nextMode);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+
+    // Cermin gambar jika kamera depan agar sesuai dengan preview
+    if (facingMode === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `master_face_${Date.now()}.jpg`, {
+        type: 'image/jpeg',
+      });
+      processFile(file);
+      stopCamera();
+    }, 'image/jpeg', 0.95);
+  };
+
+  // Reset form & stop camera when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -44,8 +150,18 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
       setFaceFile(null);
       setPreviewUrl(null);
       setErrorMsg('');
+      stopCamera();
+    } else {
+      stopCamera();
     }
   }, [isOpen]);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
 
   // ESC key dismiss
   useEffect(() => {
@@ -322,36 +438,146 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
                 <span className="text-[11px] text-slate-400">JPG, PNG (Maks. 5MB)</span>
               </div>
 
-              {/* Drag and Drop Zone or Preview */}
+              {/* Drag and Drop Zone or Live Camera View or Preview */}
               {!previewUrl ? (
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
-                    isDragging
-                      ? 'border-moss bg-moss/5 scale-[0.99]'
-                      : 'border-slate-300 hover:border-moss hover:bg-slate-50'
-                  }`}
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/jpeg,image/png,image/jpg"
-                    className="hidden"
-                  />
-                  <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-500 mb-3 group-hover:text-moss">
-                    <Camera className="w-6 h-6" />
+                isCameraActive ? (
+                  <div className="relative border-2 border-moss rounded-2xl overflow-hidden bg-slate-950 shadow-md">
+                    {/* Video Viewfinder */}
+                    <div className="relative w-full h-72 bg-black flex items-center justify-center overflow-hidden">
+                      {cameraLoading && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/90 text-white gap-3">
+                          <RefreshCw className="w-8 h-8 text-moss animate-spin" />
+                          <p className="text-xs font-medium tracking-wide">Membuka kamera...</p>
+                        </div>
+                      )}
+
+                      {cameraError ? (
+                        <div className="p-6 text-center text-white z-20 flex flex-col items-center">
+                          <AlertCircle className="w-10 h-10 text-rose-500 mb-2" />
+                          <p className="text-xs text-rose-200 mb-4 max-w-xs">{cameraError}</p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startCamera()}
+                              className="px-3 py-1.5 bg-moss hover:bg-moss/90 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                              Coba Lagi
+                            </button>
+                            <button
+                              type="button"
+                              onClick={stopCamera}
+                              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                              Batal & Upload File
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className={`w-full h-full object-cover ${facingMode === 'user' ? '-scale-x-100' : ''}`}
+                          />
+
+                          {/* Biometric Oval Guide Overlay */}
+                          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                            <div className="w-36 h-48 sm:w-44 sm:h-56 rounded-[50%] border-2 border-dashed border-emerald-400/90 shadow-[0_0_20px_rgba(52,211,153,0.35)] relative flex items-center justify-center">
+                              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" />
+                                Posisikan Wajah
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Camera Control Footer */}
+                    <div className="px-4 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        <X className="w-4 h-4" />
+                        Batal
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={capturePhoto}
+                        disabled={cameraLoading || Boolean(cameraError)}
+                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-900/40 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Ambil Foto Wajah
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={switchCamera}
+                        disabled={cameraLoading || Boolean(cameraError)}
+                        className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                        title="Beralih Kamera Depan / Belakang"
+                      >
+                        <RotateCw className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-slate-700">
-                    Klik untuk memilih foto atau seret ke sini
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Pastikan wajah terlihat jelas, menghadap depan, dan pencahayaan terang.
-                  </p>
-                </div>
+                ) : (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                      isDragging
+                        ? 'border-moss bg-moss/5 scale-[0.99]'
+                        : 'border-slate-300 hover:border-moss hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/jpeg,image/png,image/jpg"
+                      capture="user"
+                      className="hidden"
+                    />
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col items-center">
+                      <div className="flex flex-wrap items-center justify-center gap-3 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => startCamera('user')}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-moss hover:bg-moss/95 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow-md transition-all active:scale-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          Buka Kamera Langsung
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-2xs transition-all"
+                        >
+                          <Upload className="w-4 h-4 text-slate-500" />
+                          Pilih File Foto
+                        </button>
+                      </div>
+
+                      <p className="text-xs text-slate-500">
+                        Atau seret dan lepas file gambar ke dalam area ini
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Pastikan wajah terlihat jelas, menghadap depan, dan pencahayaan terang.
+                      </p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 flex items-center gap-4">
                   <div className="relative w-20 h-20 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0 bg-slate-200">
@@ -368,13 +594,21 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
                     <p className="text-xs text-slate-500 font-mono">
                       {(faceFile?.size ? (faceFile.size / 1024).toFixed(1) : '0')} KB · Foto Siap Diunggah
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => startCamera('user')}
+                        className="text-xs text-moss hover:text-moss/80 font-semibold inline-flex items-center gap-1"
+                      >
+                        <Camera className="w-3.5 h-3.5" /> Ambil Ulang Kamera
+                      </button>
+                      <span className="text-slate-300">•</span>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-xs text-moss hover:underline font-medium"
+                        className="text-xs text-slate-600 hover:text-slate-800 font-medium inline-flex items-center gap-1"
                       >
-                        Ganti Foto
+                        <Upload className="w-3.5 h-3.5" /> Ganti File
                       </button>
                       <span className="text-slate-300">•</span>
                       <button
@@ -391,6 +625,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
                     ref={fileInputRef}
                     onChange={handleFileChange}
                     accept="image/jpeg,image/png,image/jpg"
+                    capture="user"
                     className="hidden"
                   />
                 </div>

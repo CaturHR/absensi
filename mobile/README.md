@@ -1,56 +1,67 @@
-# Aplikasi Mobile Absensi Karyawan (Flutter)
+# Aplikasi Mobile Absensi Karyawan (Flutter) & Integrasi Backend
 
-Aplikasi mobile Flutter untuk presensi karyawan dengan verifikasi biometrik wajah (kamera depan) dan geofencing GPS akurat yang terhubung ke Backend Express.js (`POST /api/attendance`).
+Aplikasi mobile Flutter untuk presensi karyawan dengan verifikasi biometrik wajah (kamera depan) dan geofencing GPS akurat yang terintegrasi penuh dengan Backend Express.js & Database MySQL.
+
+---
+
+## 🚀 Endpoint Backend yang Terintegrasi
+
+| Fitur | Method | Endpoint | Keterangan |
+|---|---|---|---|
+| **Autentikasi** | `POST` | `/api/auth/login` | Login menggunakan Email/NIP dan Password |
+| **Profil User** | `GET` | `/api/auth/profile` | Sinkronisasi data user aktif |
+| **Master Wajah** | `POST` | `/api/auth/face` | Pendaftaran/pembaruan foto master wajah dari mobile |
+| **Lokasi Kantor** | `GET` | `/api/locations/active` | Mendapatkan koordinat dan radius aktif kantor secara real-time |
+| **Submit Presensi** | `POST` | `/api/attendance` | Mengirim foto selfie wajah (multipart) & koordinat GPS |
+| **Riwayat Presensi** | `GET` | `/api/attendance/history` | Mengambil catatan kehadiran user yang sedang login |
+| **Health Check** | `GET` | `/api/health` | Verifikasi konektivitas server backend |
+
+---
+
+## 🔑 Akun Uji Coba (Demo Credentials)
+
+| Peran (Role) | Email | NIP | Password | Keterangan |
+|---|---|---|---|---|
+| **Karyawan** | `karyawan@absensi.com` | `KARYAWAN001` | `karyawan123` | Sudah memiliki foto master wajah & siap presensi |
+| **Administrator** | `admin@absensi.com` | `ADMIN001` | `admin123` | Akun admin untuk web dashboard & kelola lokasi |
 
 ---
 
 ## 🛠️ Dependensi Utama (`pubspec.yaml`)
 - `camera`: Mengakses kamera depan dan mengambil foto selfie wajah.
-- `geolocator`: Mendeteksi koordinat GPS pengguna dan validasi `isMocked` (blokir Fake GPS / Mock Location).
-- `http`: Mengirimkan request multipart form-data (foto + koordinat) dan Bearer token JWT.
-- `shared_preferences`: Menyimpan token autentikasi JWT dan identitas pengguna secara lokal.
-- `intl`: Format tanggal dan jam Indonesia.
+- `geolocator`: Mendeteksi koordinat GPS pengguna dan validasi `isMocked` (anti Fake-GPS).
+- `http` & `http_parser`: Mengirimkan request multipart form-data (`MediaType('image', 'jpeg')`) dan Bearer token JWT.
+- `shared_preferences`: Menyimpan token JWT, profil, dan URL server kustom secara persisten.
+- `intl`: Format tanggal dan jam Indonesia (`id_ID`).
 
 ---
 
-## 📱 Konfigurasi Izin Perangkat (Permissions)
-
-### Android (`android/app/src/main/AndroidManifest.xml`)
-Tambahkan izin berikut di dalam tag `<manifest>`:
-```xml
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
-### iOS (`ios/Runner/Info.plist`)
-Tambahkan key berikut di dalam `<dict>`:
-```xml
-<key>NSCameraUsageDescription</key>
-<string>Aplikasi membutuhkan akses kamera untuk mengambil foto verifikasi wajah saat presensi.</string>
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>Aplikasi membutuhkan akses lokasi untuk memvalidasi radius kantor saat absensi.</string>
-```
+## 📱 Konfigurasi URL Server Backend (`ApiConstants`)
+Aplikasi mobile mendukung pergantian alamat IP backend secara dinamis langsung dari layar aplikasi (ikon DNS / Server di pojok kanan atas layar login & profil):
+- **Android Emulator**: `http://10.0.2.2:5000` *(default otomatis)*
+- **Web / iOS Simulator / Desktop**: `http://localhost:5000` *(default otomatis)*
+- **HP Fisik (via Wi-Fi)**: Masukkan IP LAN komputer Anda, contoh: `http://192.168.1.50:5000`
 
 ---
 
-## 🚀 Menjalankan Aplikasi
+## 🏃 Cara Menjalankan
 
-1. **Jalankan Backend Express.js**:
-   ```bash
-   cd ../backend
-   npm run dev
-   ```
+### 1. Jalankan Backend Express.js
+```bash
+cd backend
+npm install
+npm run dev
+# Server akan berjalan di http://localhost:5000
+```
 
-2. **Jalankan Aplikasi Flutter**:
-   ```bash
-   cd mobile
-   flutter pub get
-   flutter run
-   ```
+### 2. Jalankan Aplikasi Mobile (Flutter)
+```bash
+cd mobile
+flutter pub get
 
-> **Catatan Koneksi Backend (`lib/config/api_constants.dart`)**:
-> - Pada Android Emulator: gunakan `http://10.0.2.2:5000` (sudah dikonfigurasi otomatis).
-> - Pada iOS Simulator: gunakan `http://localhost:5000`.
-> - Pada Perangkat Fisik (HP): ubah URL menggunakan IP lokal komputer (misal: `http://192.168.1.10:5000`).
+# Jalankan di Android Emulator / Device:
+flutter run
+
+# Atau jalankan di Web:
+flutter run -d edge
+```

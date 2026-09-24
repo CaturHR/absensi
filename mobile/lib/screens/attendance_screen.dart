@@ -16,9 +16,12 @@ class AttendanceScreen extends StatefulWidget {
 class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
+  bool _isCameraLoading = true;
+  String? _cameraErrorMessage;
   bool _isLoading = false;
   String _loadingMessage = '';
   Position? _currentPosition;
+  OfficeLocation? _officeLocation;
 
   @override
   void initState() {
@@ -26,6 +29,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     _initFrontCamera();
     _fetchQuickLocation();
+    _fetchOfficeLocation();
+  }
+
+  Future<void> _fetchOfficeLocation() async {
+    final office = await AttendanceService.getActiveOfficeLocation();
+    if (mounted) {
+      setState(() => _officeLocation = office);
+    }
+  }
+
+  double? get _distanceToOffice {
+    if (_currentPosition == null || _officeLocation == null) return null;
+    return Geolocator.distanceBetween(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+      _officeLocation!.latitude,
+      _officeLocation!.longitude,
+    );
   }
 
   @override
@@ -53,17 +74,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   /// Inisialisasi kamera depan untuk selfie presensi
   Future<void> _initFrontCamera() async {
-    if (widget.cameras.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tidak ada modul kamera terdeteksi di perangkat.')),
-      );
+    if (mounted) {
+      setState(() {
+        _isCameraLoading = true;
+        _cameraErrorMessage = null;
+      });
+    }
+
+    List<CameraDescription> cams = widget.cameras;
+
+    // Jika daftar kamera kosong dari startup, coba deteksi ulang
+    if (cams.isEmpty) {
+      try {
+        cams = await availableCameras();
+      } catch (e) {
+        debugPrint('availableCameras error: $e');
+        if (mounted) {
+          setState(() {
+            _isCameraLoading = false;
+            _cameraErrorMessage = 'Kamera tidak dapat dibaca. Pastikan izin kamera aktif dan tidak sedang digunakan oleh aplikasi lain (Zoom, Teams, Camera App).';
+          });
+        }
+        return;
+      }
+    }
+
+    if (cams.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isCameraLoading = false;
+          _cameraErrorMessage = 'Tidak ada perangkat kamera yang terdeteksi di komputer/HP Anda.';
+        });
+      }
       return;
     }
 
-    // Cari kamera depan
-    final frontCamera = widget.cameras.firstWhere(
+    // Cari kamera depan atau kamera pertama yang tersedia
+    final frontCamera = cams.firstWhere(
       (c) => c.lensDirection == CameraLensDirection.front,
-      orElse: () => widget.cameras.first,
+      orElse: () => cams.first,
     );
 
     final controller = CameraController(
@@ -79,13 +128,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       setState(() {
         _cameraController = controller;
         _isCameraInitialized = true;
+        _isCameraLoading = false;
+        _cameraErrorMessage = null;
       });
     } catch (e) {
       debugPrint('Error initializing camera: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal membuka kamera: $e')),
-        );
+        setState(() {
+          _isCameraLoading = false;
+          _cameraErrorMessage = 'Gagal mengakses kamera: $e.\n\nTips: Tutup aplikasi lain yang sedang memakai webcam (Camera Windows, Zoom, Meet, dsb.) lalu klik Coba Lagi.';
+        });
       }
     }
   }
@@ -360,6 +412,47 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 child: CameraPreview(_cameraController!),
               ),
             )
+          else if (_cameraErrorMessage != null)
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 36),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.videocam_off_rounded, color: Colors.amberAccent, size: 48),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Kamera Belum Terhubung',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _cameraErrorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _initFrontCamera,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Coba Sambungkan Lagi', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
+            )
           else
             const Center(
               child: CircularProgressIndicator(color: Colors.white),
@@ -371,37 +464,73 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             child: Container(),
           ),
 
-          // 3. Top Info Pill: Lokasi GPS Status
+          // 3. Top Info Pill: Lokasi GPS Status & Geofencing Office Proximity
           Positioned(
             top: 20,
             left: 20,
             right: 20,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white24),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _currentPosition != null ? Icons.my_location : Icons.location_searching,
-                    color: _currentPosition != null ? Colors.greenAccent : Colors.orangeAccent,
-                    size: 16,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _currentPosition != null ? Icons.my_location : Icons.location_searching,
+                        color: _currentPosition != null ? Colors.greenAccent : Colors.orangeAccent,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _currentPosition != null
+                              ? 'GPS: ${_currentPosition!.latitude.toStringAsFixed(5)}, ${_currentPosition!.longitude.toStringAsFixed(5)}'
+                              : 'Mencari sinyal GPS akurat...',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _currentPosition != null
-                          ? 'GPS: ${_currentPosition!.latitude.toStringAsFixed(5)}, ${_currentPosition!.longitude.toStringAsFixed(5)}'
-                          : 'Mencari sinyal GPS akurat...',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
+                  if (_officeLocation != null && _currentPosition != null && _distanceToOffice != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _distanceToOffice! <= _officeLocation!.radius
+                              ? Icons.check_circle_outline
+                              : Icons.warning_amber_rounded,
+                          color: _distanceToOffice! <= _officeLocation!.radius
+                              ? Colors.greenAccent
+                              : Colors.amberAccent,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '${_officeLocation!.name}: ${_distanceToOffice!.toStringAsFixed(0)}m / ${_officeLocation!.radius}m (${_distanceToOffice! <= _officeLocation!.radius ? "Dalam Radius" : "Di Luar Radius"})',
+                            style: TextStyle(
+                              color: _distanceToOffice! <= _officeLocation!.radius
+                                  ? Colors.greenAccent
+                                  : Colors.amberAccent,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

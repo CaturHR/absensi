@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 const User = require('../models/User');
 require('dotenv').config();
 
@@ -45,6 +46,12 @@ const authController = {
       const salt = await bcrypt.genSalt(12);
       const hashedPassword = await bcrypt.hash(password, salt);
 
+      // Handle foto master wajah jika diunggah saat registrasi
+      let facePhotoRelative = null;
+      if (req.file) {
+        facePhotoRelative = `faces/${req.file.filename}`;
+      }
+
       // Buat user
       const user = await User.create({
         name,
@@ -52,6 +59,7 @@ const authController = {
         nip,
         password: hashedPassword,
         role: role || 'user',
+        face_photo: facePhotoRelative,
       });
 
       return res.status(201).json({
@@ -63,9 +71,14 @@ const authController = {
           email: user.email,
           nip: user.nip,
           role: user.role,
+          face_photo: user.face_photo,
         },
       });
     } catch (error) {
+      // Cleanup file jika terjadi error
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       next(error);
     }
   },
@@ -100,8 +113,25 @@ const authController = {
         });
       }
 
-      // Verifikasi password
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      // Verifikasi password (mendukung bcrypt hash dan fallback plaintext jika diedit langsung di phpMyAdmin)
+      let isPasswordValid = false;
+      if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
+        isPasswordValid = await bcrypt.compare(password, user.password);
+      } else {
+        // Jika password diisi manual sebagai text biasa di phpMyAdmin
+        isPasswordValid = (password === user.password);
+        if (isPasswordValid) {
+          // Otomatis upgrade ke hash bcrypt
+          try {
+            const salt = await bcrypt.genSalt(12);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            await User.update(user.id, { password: hashedPassword });
+          } catch (hashErr) {
+            console.warn('Gagal auto-upgrade password hash:', hashErr.message);
+          }
+        }
+      }
+
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
@@ -131,6 +161,7 @@ const authController = {
             email: user.email,
             nip: user.nip,
             role: user.role,
+            face_photo: user.face_photo || null,
           },
         },
       });
@@ -160,6 +191,60 @@ const authController = {
         data: user,
       });
     } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/auth/face
+   * Upload foto master wajah untuk user yang sedang login.
+   */
+  uploadMyFacePhoto: async (req, res, next) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const { UPLOAD_DIR_FACES } = require('../config/multer');
+      const id = req.user.id;
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Foto wajah wajib diunggah.',
+        });
+      }
+
+      const user = await User.findById(id);
+      if (!user) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(404).json({
+          success: false,
+          message: 'User tidak ditemukan.',
+        });
+      }
+
+      // Hapus foto lama jika ada
+      if (user.face_photo) {
+        const oldPhotoPath = path.join(UPLOAD_DIR_FACES, path.basename(user.face_photo));
+        if (fs.existsSync(oldPhotoPath)) {
+          fs.unlinkSync(oldPhotoPath);
+        }
+      }
+
+      const facePhotoRelative = `faces/${req.file.filename}`;
+      await User.update(id, { face_photo: facePhotoRelative });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Foto master wajah berhasil disimpan.',
+        data: {
+          face_photo: facePhotoRelative,
+        },
+      });
+    } catch (error) {
+      const fs = require('fs');
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
       next(error);
     }
   },

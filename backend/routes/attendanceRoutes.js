@@ -27,6 +27,9 @@ router.get('/history', authMiddleware, attendanceController.getMyHistory);
 // Semua log absensi (admin only)
 router.get('/', authMiddleware, adminOnly, attendanceController.getAllAttendance);
 
+// Status absensi hari ini (Clock In & Clock Out) user yang login
+router.get('/today', authMiddleware, attendanceController.getTodayStatus);
+
 // Detail absensi (user bisa lihat milik sendiri, admin bisa lihat semua)
 router.get('/:id', authMiddleware, attendanceController.getAttendanceById);
 

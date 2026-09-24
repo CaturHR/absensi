@@ -16,14 +16,15 @@ const Attendance = {
     distance,
     face_confidence,
     status,
+    type = 'in',
     photo,
     location_id,
   }) => {
     const [result] = await pool.execute(
       `INSERT INTO attendance_logs 
-        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, latitude, longitude, distance, face_confidence, status, photo, location_id]
+        (user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id]
     );
     return {
       id: result.insertId,
@@ -33,6 +34,7 @@ const Attendance = {
       distance,
       face_confidence,
       status,
+      type,
       photo,
       location_id,
     };
@@ -157,6 +159,28 @@ const Attendance = {
       [userId]
     );
     return rows[0] || null;
+  },
+
+  /**
+   * Mengambil status Clock In & Clock Out user untuk hari ini.
+   * @param {number} userId
+   * @returns {Promise<{ clockIn: object|null, clockOut: object|null, hasClockedIn: boolean, hasClockedOut: boolean }>}
+   */
+  getTodayStatus: async (userId) => {
+    const [rows] = await pool.execute(
+      `SELECT id, user_id, status, type, created_at FROM attendance_logs 
+       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status = 'Hadir'
+       ORDER BY created_at ASC`,
+      [userId]
+    );
+    const clockIn = rows.find((r) => r.type === 'in') || null;
+    const clockOut = rows.find((r) => r.type === 'out') || null;
+    return {
+      clockIn,
+      clockOut,
+      hasClockedIn: !!clockIn,
+      hasClockedOut: !!clockOut,
+    };
   },
 };
 

@@ -258,9 +258,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: const Color(0xFFF7F7F2),
       appBar: AppBar(
         title: const Text('Profil Saya', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.white.withValues(alpha: 0.88),
         foregroundColor: const Color(0xFF242721),
-        elevation: 0.5,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -274,9 +274,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
-          : RefreshIndicator(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'lib/asset/baground/BG.png',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF365C4A)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.20),
+                  Colors.black.withValues(alpha: 0.08),
+                  Colors.black.withValues(alpha: 0.30),
+                ],
+              ),
+            ),
+          ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
+              : RefreshIndicator(
               onRefresh: _loadUserData,
               color: const Color(0xFF365C4A),
               child: ListView(
@@ -286,15 +307,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),
                       ],
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                     ),
                     child: Column(
                       children: [
@@ -346,15 +368,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),
                       ],
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,15 +433,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),
                       ],
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -464,6 +488,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+        ],
+      ),
     );
   }
 }

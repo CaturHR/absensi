@@ -516,6 +516,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // Background placeholder dari lib/asset/baground/BG.png saat kamera belum aktif
+          if (!_isCameraInitialized) ...[
+            Image.asset(
+              'lib/asset/baground/BG.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(),
+            ),
+            Container(
+              color: Colors.black.withValues(alpha: 0.65),
+            ),
+          ],
+
           // 1. Viewfinder Kamera Depan Real-Time
           if (_isCameraInitialized && _cameraController != null)
             Center(

@@ -15,9 +15,11 @@ class AuthService {
     final uri = Uri.parse(ApiConstants.loginUrl);
 
     try {
-      final isEmail = identifier.contains('@');
+      final trimmed = identifier.trim();
       final body = jsonEncode({
-        if (isEmail) 'email': identifier.trim() else 'nip': identifier.trim(),
+        'identifier': trimmed,
+        'email': trimmed,
+        'nip': trimmed,
         'password': password,
       });
 

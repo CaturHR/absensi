@@ -245,13 +245,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Input: Email atau NIP
+                  // Input: Email, Username, atau NIP
                   TextFormField(
                     controller: _identifierController,
-                    keyboardType: TextInputType.emailAddress,
+                    keyboardType: TextInputType.text,
                     decoration: InputDecoration(
-                      labelText: 'Email atau NIP',
-                      hintText: 'contoh: karyawan@absensi.com / KARYAWAN001',
+                      labelText: 'Email, Username, atau NIP',
+                      hintText: 'contoh: nama_pengguna / email / NIP',
                       prefixIcon: const Icon(Icons.badge_outlined, color: Color(0xFF365C4A)),
                       filled: true,
                       fillColor: Colors.white,
@@ -266,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Email atau NIP tidak boleh kosong';
+                        return 'Email, Username, atau NIP tidak boleh kosong';
                       }
                       return null;
                     },

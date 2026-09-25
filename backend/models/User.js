@@ -18,14 +18,25 @@ const User = {
   },
 
   /**
-   * Cari user berdasarkan email.
+   * Cari user berdasarkan email atau nama pengguna (mendukung tanpa @gmail.com).
    * @param {string} email
    * @returns {Promise<object|null>}
    */
   findByEmail: async (email) => {
+    if (!email) return null;
+    const trimmed = email.trim();
+    // Jika input berakhiran @gmail.com, buat versi tanpa @gmail.com
+    // Jika input tidak mengandung @, buat versi dengan @gmail.com
+    const withoutGmail = trimmed.toLowerCase().endsWith('@gmail.com')
+      ? trimmed.slice(0, -10)
+      : trimmed;
+    const withGmail = trimmed.includes('@')
+      ? trimmed
+      : `${trimmed}@gmail.com`;
+
     const [rows] = await pool.execute(
-      'SELECT * FROM users WHERE email = ?',
-      [email]
+      'SELECT * FROM users WHERE email = ? OR email = ? OR email = ? ORDER BY (email = ?) DESC LIMIT 1',
+      [trimmed, withGmail, withoutGmail, trimmed]
     );
     return rows[0] || null;
   },

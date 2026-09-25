@@ -13,7 +13,7 @@ export default function LoginPage({ onLoginSuccess }) {
     setError('');
 
     if (!email.trim() || !password.trim()) {
-      setError('Email dan kata sandi wajib diisi.');
+      setError('Email/Username dan kata sandi wajib diisi.');
       return;
     }
 
@@ -77,16 +77,16 @@ export default function LoginPage({ onLoginSuccess }) {
               </div>
             )}
 
-            {/* Email */}
+            {/* Email / Username */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
-                Email Admin
+                Email / Nama Pengguna Admin
               </label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@absensi.com"
+                placeholder="admin atau admin@absensi.com"
                 autoFocus
                 className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-moss/30 focus:border-moss transition-all"
               />

@@ -237,7 +237,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
       return;
     }
     if (!formData.email.trim()) {
-      setErrorMsg('Alamat email wajib diisi.');
+      setErrorMsg('Email atau nama pengguna wajib diisi.');
       return;
     }
     if (!formData.password || formData.password.length < 6) {
@@ -358,14 +358,14 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-1">
-                  Email Perusahaan <span className="text-rose-500">*</span>
+                  Email / Nama Pengguna <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  placeholder="nama@perusahaan.co.id"
+                  placeholder="nama_pengguna atau email@perusahaan.co.id"
                   required
                   className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-moss/30 focus:border-moss transition-all"
                 />

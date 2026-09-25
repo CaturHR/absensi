@@ -14,6 +14,7 @@ import {
 import AddUserModal from './AddUserModal';
 import { fetchUsers, deleteUser } from '../../services/api';
 import { MOCK_USERS } from '../../data/mockData';
+import { getImageUrl } from '../../utils/image';
 
 export default function UserManagement() {
   const [users, setUsers] = useState(MOCK_USERS);
@@ -187,15 +188,24 @@ export default function UserManagement() {
                           <div className="relative w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
                             {hasPhoto ? (
                               <img
-                                src={user.face_photo}
+                                src={getImageUrl(user.face_photo)}
                                 alt={user.name}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                  if (e.target.nextElementSibling) {
+                                    e.target.nextElementSibling.style.display = 'flex';
+                                  }
+                                }}
                               />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100 font-bold">
-                                {user.name.charAt(0)}
-                              </div>
-                            )}
+                            ) : null}
+                            <div
+                              className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100 font-bold"
+                              style={{ display: hasPhoto ? 'none' : 'flex' }}
+                            >
+                              {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
                           </div>
                           <div>
                             <span className="font-medium text-slate-800 block">
@@ -240,11 +250,15 @@ export default function UserManagement() {
                               <CheckCircle2 className="w-3 h-3" />
                               Terdaftar
                             </span>
-                            <div className="w-7 h-7 rounded-md overflow-hidden border border-slate-200">
+                            <div className="w-7 h-7 rounded-md overflow-hidden border border-slate-200 bg-slate-100">
                               <img
-                                src={user.face_photo}
+                                src={getImageUrl(user.face_photo)}
                                 alt="Master"
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                }}
                               />
                             </div>
                           </div>

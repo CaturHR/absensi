@@ -14,6 +14,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
+import { getImageUrl } from '../../utils/image';
 
 export default function AttendanceDetailModal({ attendance, onClose }) {
   const [copied, setCopied] = React.useState(false);
@@ -113,9 +114,13 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-sm bg-slate-200">
                 <img
-                  src={attendance.master_photo || attendance.photo}
+                  src={getImageUrl(attendance.master_photo || attendance.photo)}
                   alt={attendance.user_name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                  }}
                 />
               </div>
               <div>
@@ -181,9 +186,13 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
                 </span>
                 <div className="relative w-full aspect-square max-h-52 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
                   <img
-                    src={attendance.master_photo || attendance.photo}
+                    src={getImageUrl(attendance.master_photo || attendance.photo)}
                     alt="Foto Master Pegawai"
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
                   />
                   <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded font-mono">
                     Master Baseline
@@ -201,9 +210,13 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
                 </span>
                 <div className="relative w-full aspect-square max-h-52 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
                   <img
-                    src={attendance.photo}
+                    src={getImageUrl(attendance.photo)}
                     alt="Foto Saat Absen"
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
                   />
                   <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded font-mono">
                     Tangkapan Kamera

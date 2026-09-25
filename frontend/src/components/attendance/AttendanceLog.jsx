@@ -21,6 +21,7 @@ import {
 import AttendanceDetailModal from './AttendanceDetailModal';
 import { fetchAttendanceLogs } from '../../services/api';
 import { MOCK_ATTENDANCE_LOGS } from '../../data/mockData';
+import { getImageUrl } from '../../utils/image';
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState(MOCK_ATTENDANCE_LOGS);
@@ -367,10 +368,14 @@ export default function AttendanceLog() {
                         <div className="flex items-center gap-3">
                           <div className="relative w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0 bg-slate-100">
                             <img
-                              src={log.master_photo || log.photo}
+                              src={getImageUrl(log.master_photo || log.photo)}
                               alt={log.user_name}
                               className="w-full h-full object-cover"
                               loading="lazy"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.style.display = 'none';
+                              }}
                             />
                           </div>
                           <div>

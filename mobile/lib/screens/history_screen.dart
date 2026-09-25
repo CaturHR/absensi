@@ -93,9 +93,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       backgroundColor: const Color(0xFFF7F7F2),
       appBar: AppBar(
         title: const Text('Riwayat Presensi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.white.withValues(alpha: 0.88),
         foregroundColor: const Color(0xFF242721),
-        elevation: 0.5,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -104,8 +104,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'lib/asset/baground/BG.png',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF365C4A)),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.20),
+                  Colors.black.withValues(alpha: 0.08),
+                  Colors.black.withValues(alpha: 0.30),
+                ],
+              ),
+            ),
+          ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
           : _errorMessage != null
               ? Center(
                   child: Padding(
@@ -171,9 +192,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           return Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.grey.shade200),
+                              color: Colors.white.withValues(alpha: 0.94),
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,6 +253,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         },
                       ),
                     ),
+        ],
+      ),
     );
   }
 }

@@ -32,4 +32,10 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - lib/asset/baground/
+    - lib/asset/icon/
+    - assets/baground/
+    - assets/icon/
+
 

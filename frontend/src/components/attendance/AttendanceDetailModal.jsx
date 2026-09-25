@@ -14,7 +14,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
-import { getImageUrl } from '../../utils/image';
+import { getImageUrl } from '../../utils/imageUrl';
 
 export default function AttendanceDetailModal({ attendance, onClose }) {
   const [copied, setCopied] = React.useState(false);
@@ -118,8 +118,7 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
                   alt={attendance.user_name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.style.display = 'none';
+                    e.currentTarget.style.display = 'none';
                   }}
                 />
               </div>
@@ -190,8 +189,7 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
                     alt="Foto Master Pegawai"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.style.display = 'none';
+                      e.currentTarget.style.display = 'none';
                     }}
                   />
                   <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded font-mono">
@@ -214,8 +212,7 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
                     alt="Foto Saat Absen"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.style.display = 'none';
+                      e.currentTarget.style.display = 'none';
                     }}
                   />
                   <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] px-2 py-0.5 rounded font-mono">

@@ -15,6 +15,14 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      '/faces': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/attendance': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
     },
   },
 })

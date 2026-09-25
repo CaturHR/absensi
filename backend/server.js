@@ -102,6 +102,8 @@ if (process.env.NODE_ENV !== 'production') {
 // Static Files - Serve uploaded files
 // ──────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/faces', express.static(path.join(__dirname, 'uploads', 'faces')));
+app.use('/attendance', express.static(path.join(__dirname, 'uploads', 'attendance')));
 
 // ──────────────────────────────────────────────
 // API Routes

@@ -14,7 +14,7 @@ import {
 import AddUserModal from './AddUserModal';
 import { fetchUsers, deleteUser } from '../../services/api';
 import { MOCK_USERS } from '../../data/mockData';
-import { getImageUrl } from '../../utils/image';
+import { getImageUrl } from '../../utils/imageUrl';
 
 export default function UserManagement() {
   const [users, setUsers] = useState(MOCK_USERS);
@@ -192,19 +192,16 @@ export default function UserManagement() {
                                 alt={user.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.style.display = 'none';
-                                  if (e.target.nextElementSibling) {
-                                    e.target.nextElementSibling.style.display = 'flex';
-                                  }
+                                  e.currentTarget.style.display = 'none';
                                 }}
                               />
                             ) : null}
                             <div
-                              className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100 font-bold"
-                              style={{ display: hasPhoto ? 'none' : 'flex' }}
+                              className={`w-full h-full flex items-center justify-center text-slate-400 bg-slate-100 font-bold ${
+                                hasPhoto ? 'hidden' : ''
+                              }`}
                             >
-                              {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                              {user.name ? user.name.charAt(0).toUpperCase() : '?'}
                             </div>
                           </div>
                           <div>
@@ -256,8 +253,7 @@ export default function UserManagement() {
                                 alt="Master"
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.style.display = 'none';
+                                  e.currentTarget.style.display = 'none';
                                 }}
                               />
                             </div>

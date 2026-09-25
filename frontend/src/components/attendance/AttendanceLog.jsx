@@ -21,7 +21,7 @@ import {
 import AttendanceDetailModal from './AttendanceDetailModal';
 import { fetchAttendanceLogs } from '../../services/api';
 import { MOCK_ATTENDANCE_LOGS } from '../../data/mockData';
-import { getImageUrl } from '../../utils/image';
+import { getImageUrl } from '../../utils/imageUrl';
 
 export default function AttendanceLog() {
   const [logs, setLogs] = useState(MOCK_ATTENDANCE_LOGS);
@@ -373,8 +373,7 @@ export default function AttendanceLog() {
                               className="w-full h-full object-cover"
                               loading="lazy"
                               onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.style.display = 'none';
+                                e.currentTarget.style.display = 'none';
                               }}
                             />
                           </div>

@@ -20,16 +20,16 @@ const authController = {
       if (!name || !email || !nip || !password) {
         return res.status(400).json({
           success: false,
-          message: 'Name, email, NIP, dan password wajib diisi.',
+          message: 'Nama, email/nama pengguna, NIP, dan password wajib diisi.',
         });
       }
 
-      // Cek email unik
+      // Cek email/username unik
       const existingEmail = await User.findByEmail(email);
       if (existingEmail) {
         return res.status(409).json({
           success: false,
-          message: 'Email sudah terdaftar.',
+          message: 'Email atau nama pengguna sudah terdaftar.',
         });
       }
 
@@ -89,27 +89,27 @@ const authController = {
    */
   login: async (req, res, next) => {
     try {
-      const { email, nip, password } = req.body;
+      const { email, nip, identifier, password } = req.body;
+      const loginId = (identifier || email || nip || '').trim();
 
-      if (!password || (!email && !nip)) {
+      if (!password || !loginId) {
         return res.status(400).json({
           success: false,
-          message: 'Email/NIP dan password wajib diisi.',
+          message: 'Email/Username/NIP dan password wajib diisi.',
         });
       }
 
-      // Cari user berdasarkan email atau NIP
-      let user = null;
-      if (email) {
-        user = await User.findByEmail(email);
-      } else if (nip) {
-        user = await User.findByNip(nip);
+      // Cari user berdasarkan email / username (dengan atau tanpa @gmail.com)
+      let user = await User.findByEmail(loginId);
+      // Jika tidak ditemukan, coba cari berdasarkan NIP
+      if (!user) {
+        user = await User.findByNip(loginId);
       }
 
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Email/NIP atau password salah.',
+          message: 'Email/Username/NIP atau password salah.',
         });
       }
 

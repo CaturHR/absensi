@@ -7,9 +7,10 @@ import {
   Activity,
   Bell,
   Menu,
+  FileCheck,
 } from 'lucide-react';
 
-export default function Header({ activeTab, isBackendOnline, onToggleMobileMenu }) {
+export default function Header({ activeTab, isBackendOnline, onToggleMobileMenu, onSelectTab }) {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -38,6 +39,8 @@ export default function Header({ activeTab, isBackendOnline, onToggleMobileMenu 
         return 'Manajemen Karyawan & Biometrik';
       case 'settings':
         return 'Pengaturan Geofencing Kantor';
+      case 'leaves':
+        return 'Approval Permohonan Izin';
       default:
         return 'Dashboard Admin';
     }
@@ -66,6 +69,18 @@ export default function Header({ activeTab, isBackendOnline, onToggleMobileMenu 
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">
+        {/* Shortcut: Leave Approval */}
+        {activeTab !== 'leaves' && onSelectTab && (
+          <button
+            onClick={() => onSelectTab('leaves')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+            title="Buka Approval Izin"
+          >
+            <FileCheck className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Approval Izin</span>
+          </button>
+        )}
+
         {/* Real-time Clock */}
         <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl text-xs text-slate-600 font-mono">
           <Calendar className="w-3.5 h-3.5 text-slate-400" />

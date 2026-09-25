@@ -5,6 +5,7 @@ import Header from './components/layout/Header';
 import AttendanceLog from './components/attendance/AttendanceLog';
 import UserManagement from './components/users/UserManagement';
 import OfficeSettings from './components/settings/OfficeSettings';
+import LeaveApproval from './components/leaves/LeaveApproval';
 import { checkBackendStatus } from './services/api';
 
 export default function App() {
@@ -107,10 +108,12 @@ export default function App() {
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           adminUser={adminUser}
           onLogout={handleLogout}
+          onSelectTab={setActiveTab}
         />
 
         <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto animate-rise-in">
           {activeTab === 'attendance' && <AttendanceLog />}
+          {activeTab === 'leaves' && <LeaveApproval />}
           {activeTab === 'users' && <UserManagement />}
           {activeTab === 'settings' && <OfficeSettings />}
         </main>

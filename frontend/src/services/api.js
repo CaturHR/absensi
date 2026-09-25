@@ -242,3 +242,92 @@ export async function updateOfficeLocation(locationData) {
 
   return { success: true, data: localOffice, isMock: true };
 }
+
+// ──────────────────────────────────────────────
+// Leave Request API (Permohonan Izin)
+// ──────────────────────────────────────────────
+
+// Mock leave data for offline mode
+let localLeaves = [];
+
+/**
+ * 8. Ambil Semua Permohonan Izin (Admin)
+ */
+export async function fetchLeaveRequests(params = {}) {
+  try {
+    const query = new URLSearchParams();
+    if (params.status && params.status !== 'all') query.append('status', params.status);
+    if (params.page) query.append('page', params.page);
+    if (params.limit) query.append('limit', params.limit);
+
+    const res = await fetch(`/api/leaves?${query.toString()}`, {
+      headers: { ...getAuthHeader() },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, data: data.data || [], isMock: false };
+    }
+  } catch (err) {
+    console.info('Backend unreachable, using Mock Leave Data:', err.message);
+  }
+
+  // Fallback to mock
+  let filtered = [...localLeaves];
+  if (params.status && params.status !== 'all') {
+    filtered = filtered.filter((l) => l.status === params.status);
+  }
+  return { success: true, data: filtered, isMock: true };
+}
+
+/**
+ * 9. Approve Permohonan Izin
+ */
+export async function approveLeave(id) {
+  try {
+    const res = await fetch(`/api/leaves/${id}/approve`, {
+      method: 'PATCH',
+      headers: { ...getAuthHeader() },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, message: data.message, isMock: false };
+    }
+    const errData = await res.json();
+    return { success: false, message: errData.message || 'Gagal menyetujui izin.' };
+  } catch (err) {
+    console.info('Backend unreachable, approving in mock mode:', err.message);
+  }
+
+  // Mock fallback
+  localLeaves = localLeaves.map((l) =>
+    l.id === Number(id) ? { ...l, status: 'approved', reviewed_at: new Date().toISOString() } : l
+  );
+  return { success: true, message: 'Izin disetujui (mock).', isMock: true };
+}
+
+/**
+ * 10. Tolak Permohonan Izin
+ */
+export async function rejectLeave(id) {
+  try {
+    const res = await fetch(`/api/leaves/${id}/reject`, {
+      method: 'PATCH',
+      headers: { ...getAuthHeader() },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, message: data.message, isMock: false };
+    }
+    const errData = await res.json();
+    return { success: false, message: errData.message || 'Gagal menolak izin.' };
+  } catch (err) {
+    console.info('Backend unreachable, rejecting in mock mode:', err.message);
+  }
+
+  // Mock fallback
+  localLeaves = localLeaves.map((l) =>
+    l.id === Number(id) ? { ...l, status: 'rejected', reviewed_at: new Date().toISOString() } : l
+  );
+  return { success: true, message: 'Izin ditolak (mock).', isMock: true };
+}

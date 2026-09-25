@@ -75,6 +75,10 @@ class ApiConstants {
   // Location Endpoints
   static String get activeLocationUrl => '$baseUrl/api/locations/active';
 
+  // Leave Request Endpoints
+  static String get submitLeaveUrl => '$baseUrl/api/leaves';
+  static String get myLeavesUrl => '$baseUrl/api/leaves/my';
+
   // Health Endpoint
   static String get healthUrl => '$baseUrl/api/health';
 }

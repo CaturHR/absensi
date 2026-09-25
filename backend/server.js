@@ -15,6 +15,10 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const locationRoutes = require('./routes/locationRoutes');
+const leaveRoutes = require('./routes/leaveRoutes');
+
+// Import Models (for auto table creation)
+const LeaveRequest = require('./models/LeaveRequest');
 
 // ──────────────────────────────────────────────
 // Inisialisasi Express App
@@ -29,6 +33,7 @@ const uploadDirs = [
   path.join(__dirname, 'uploads'),
   path.join(__dirname, 'uploads', 'attendance'),
   path.join(__dirname, 'uploads', 'faces'),
+  path.join(__dirname, 'uploads', 'leaves'),
 ];
 
 uploadDirs.forEach((dir) => {
@@ -104,6 +109,7 @@ if (process.env.NODE_ENV !== 'production') {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/faces', express.static(path.join(__dirname, 'uploads', 'faces')));
 app.use('/attendance', express.static(path.join(__dirname, 'uploads', 'attendance')));
+app.use('/leaves', express.static(path.join(__dirname, 'uploads', 'leaves')));
 
 // ──────────────────────────────────────────────
 // API Routes
@@ -112,6 +118,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/leaves', leaveRoutes);
 
 // ──────────────────────────────────────────────
 // Health Check
@@ -147,6 +154,14 @@ const startServer = async () => {
   try {
     // Test koneksi database
     await testConnection();
+
+    // Auto-create leave_requests table if not exists
+    try {
+      await LeaveRequest.createTable();
+      console.log('✅ Tabel leave_requests siap.');
+    } catch (err) {
+      console.error('⚠️ Gagal membuat tabel leave_requests:', err.message);
+    }
 
     app.listen(PORT, () => {
       console.log('══════════════════════════════════════════');

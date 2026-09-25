@@ -5,6 +5,7 @@ import {
   MapPin,
   ShieldCheck,
   LogOut,
+  FileCheck,
 } from 'lucide-react';
 
 export default function Sidebar({ activeTab, onSelectTab, isBackendOnline, onLogout }) {
@@ -27,6 +28,12 @@ export default function Sidebar({ activeTab, onSelectTab, isBackendOnline, onLog
       sublabel: 'Riwayat & Validasi AI',
       icon: ClipboardList,
       badge: 'Real-time',
+    },
+    {
+      id: 'leaves',
+      label: 'Approval Izin',
+      sublabel: 'Permohonan Karyawan',
+      icon: FileCheck,
     },
     {
       id: 'users',

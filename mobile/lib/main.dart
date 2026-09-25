@@ -7,6 +7,8 @@ import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/leave_screen.dart';
 
 List<CameraDescription> cameras = [];
 
@@ -78,7 +80,14 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   void initState() {
     super.initState();
     _pages = [
+      HomeScreen(
+        cameras: widget.cameras,
+        onSwitchTab: (index) {
+          setState(() => _currentIndex = index);
+        },
+      ),
       AttendanceScreen(cameras: widget.cameras),
+      LeaveScreen(cameras: widget.cameras),
       const HistoryScreen(),
       ProfileScreen(cameras: widget.cameras),
     ];
@@ -103,9 +112,19 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         indicatorColor: const Color(0xFF365C4A).withValues(alpha: 0.15),
         destinations: const [
           NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF365C4A)),
+            label: 'Beranda',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.camera_alt_outlined),
             selectedIcon: Icon(Icons.camera_alt, color: Color(0xFF365C4A)),
             label: 'Presensi',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.description_outlined),
+            selectedIcon: Icon(Icons.description_rounded, color: Color(0xFF6366F1)),
+            label: 'Izin',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),

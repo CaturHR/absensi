@@ -1,4 +1,5 @@
 const LeaveRequest = require('../models/LeaveRequest');
+const Attendance = require('../models/Attendance');
 const path = require('path');
 const fs = require('fs');
 
@@ -161,9 +162,15 @@ const leaveController = {
 
       await LeaveRequest.updateStatus(leaveId, 'approved', adminId);
 
+      // Buat log absensi dengan status 'Izin' setelah disetujui
+      await Attendance.createLeaveLog({
+        user_id: leave.user_id,
+        reason: leave.reason,
+      });
+
       return res.status(200).json({
         success: true,
-        message: 'Permohonan izin berhasil disetujui.',
+        message: 'Permohonan izin berhasil disetujui dan log absensi Izin telah dicatat.',
       });
     } catch (error) {
       console.error('Error approving leave:', error);

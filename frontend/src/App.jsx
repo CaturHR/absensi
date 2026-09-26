@@ -16,23 +16,67 @@ export default function App() {
   const [adminUser, setAdminUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Check if user is already logged in on mount
+  // Check if user is already logged in on mount with token verification
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('admin_user');
-    if (token && savedUser) {
+    async function verifyAuth() {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('admin_user');
+
+      if (!token || !savedUser) {
+        setCheckingAuth(false);
+        return;
+      }
+
       try {
         const user = JSON.parse(savedUser);
-        if (user.role === 'admin') {
+        // Cek validitas token ke backend
+        const res = await fetch('/api/auth/profile', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const profileData = await res.json();
+          if (profileData.data?.role === 'admin') {
+            setAdminUser(profileData.data);
+            setIsLoggedIn(true);
+            setCheckingAuth(false);
+            return;
+          }
+        }
+
+        // Jika status 401/403 (token kedaluwarsa atau bukan admin)
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('admin_user');
+          setIsLoggedIn(false);
+          setAdminUser(null);
+        } else if (user.role === 'admin') {
+          // Jika server sedang offline, izinkan session offline
           setAdminUser(user);
           setIsLoggedIn(true);
         }
       } catch {
-        localStorage.removeItem('token');
-        localStorage.removeItem('admin_user');
+        try {
+          const user = JSON.parse(savedUser);
+          if (user.role === 'admin') {
+            setAdminUser(user);
+            setIsLoggedIn(true);
+          }
+        } catch {}
+      } finally {
+        setCheckingAuth(false);
       }
     }
-    setCheckingAuth(false);
+
+    verifyAuth();
+
+    const handleUnauthorized = () => {
+      setIsLoggedIn(false);
+      setAdminUser(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
   // Check backend server status periodically

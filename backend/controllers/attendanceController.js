@@ -156,7 +156,6 @@ const attendanceController = {
           distance,
           face_confidence: null,
           status: 'Di Luar Radius',
-          type,
           photo: photoRelativePath,
           location_id: location.id,
         });
@@ -167,7 +166,6 @@ const attendanceController = {
           data: {
             id: attendanceLog.id,
             status: 'Di Luar Radius',
-            type,
             distance,
             radius,
             timestamp: new Date().toISOString(),
@@ -181,7 +179,7 @@ const attendanceController = {
       // tetapi proses komparasi wajah dilewati (bypass) dan status langsung "Hadir".
       // ──────────────────────────────────────────────
       const faceConfidence = 100.0;
-      const faceStatus = 'Hadir';
+      const faceStatus = type === 'in' ? 'Clock In' : 'Clock Out';
 
       // ──────────────────────────────────────────────
       // 7 & 8. Simpan log absensi dengan status final
@@ -195,7 +193,6 @@ const attendanceController = {
         distance,
         face_confidence: faceConfidence,
         status: faceStatus,
-        type,
         photo: photoRelativePath,
         location_id: location.id,
       });
@@ -203,7 +200,7 @@ const attendanceController = {
       // ──────────────────────────────────────────────
       // 9. Response
       // ──────────────────────────────────────────────
-      const isSuccess = faceStatus === 'Hadir';
+      const isSuccess = faceStatus === 'Clock In' || faceStatus === 'Clock Out';
       const statusCode = 200;
       const actionLabel = type === 'in' ? 'Clock In' : 'Clock Out';
       const now = new Date();
@@ -217,7 +214,6 @@ const attendanceController = {
         data: {
           id: attendanceLog.id,
           status: faceStatus,
-          type,
           time: timeStr,
           distance,
           radius,

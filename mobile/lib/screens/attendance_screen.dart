@@ -256,7 +256,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   /// Pop-up Dialog Hasil Presensi Sesuai Permintaan
   void _showAttendanceResultDialog(AttendanceResult result, String type) {
-    final isPresent = result.status == 'Hadir';
+    final isPresent = result.status == 'Clock In' || result.status == 'Clock Out' || result.isSuccess;
     final isOutOfRadius = result.status == 'Di Luar Radius';
     final isClockIn = type == 'in';
     final actionLabel = isClockIn ? 'Clock In' : 'Clock Out';

@@ -16,15 +16,14 @@ const Attendance = {
     distance,
     face_confidence,
     status,
-    type = 'in',
     photo,
     location_id,
   }) => {
     const [result] = await pool.execute(
       `INSERT INTO attendance_logs 
-        (user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id]
+        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, latitude, longitude, distance, face_confidence, status, photo, location_id]
     );
     return {
       id: result.insertId,
@@ -34,7 +33,6 @@ const Attendance = {
       distance,
       face_confidence,
       status,
-      type,
       photo,
       location_id,
     };
@@ -168,18 +166,38 @@ const Attendance = {
    */
   getTodayStatus: async (userId) => {
     const [rows] = await pool.execute(
-      `SELECT id, user_id, status, type, created_at FROM attendance_logs 
-       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status = 'Hadir'
+      `SELECT id, user_id, status, created_at FROM attendance_logs 
+       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status IN ('Clock In', 'Clock Out')
        ORDER BY created_at ASC`,
       [userId]
     );
-    const clockIn = rows.find((r) => r.type === 'in') || null;
-    const clockOut = rows.find((r) => r.type === 'out') || null;
+    const clockIn = rows.find((r) => r.status === 'Clock In') || null;
+    const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
     return {
       clockIn,
       clockOut,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
+    };
+  },
+
+  /**
+   * Buat log absensi dengan status 'Izin' ketika leave request di-approve.
+   * @param {object} data - { user_id, reason }
+   * @returns {Promise<object>}
+   */
+  createLeaveLog: async ({ user_id, reason }) => {
+    const [result] = await pool.execute(
+      `INSERT INTO attendance_logs 
+        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
+       VALUES (?, 0, 0, 0, NULL, 'Izin', NULL, NULL)`,
+      [user_id]
+    );
+    return {
+      id: result.insertId,
+      user_id,
+      status: 'Izin',
+      reason,
     };
   },
 };

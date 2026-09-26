@@ -13,6 +13,9 @@ import {
   Navigation,
   Sparkles,
   Info,
+  LogIn,
+  LogOut,
+  FileText,
 } from 'lucide-react';
 import { getImageUrl } from '../../utils/imageUrl';
 
@@ -37,7 +40,10 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isPresent = attendance.status === 'Hadir';
+  const isClockIn = attendance.status === 'Clock In';
+  const isClockOut = attendance.status === 'Clock Out';
+  const isIzin = attendance.status === 'Izin';
+  const isPresent = isClockIn || isClockOut;
   const isOutOfRadius = attendance.status === 'Di Luar Radius';
   const isMismatch = attendance.status === 'Wajah Tidak Cocok' || attendance.status === 'Gagal Verifikasi Wajah';
 
@@ -76,14 +82,24 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
           <div className="flex items-center gap-3">
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-sm ${
-                isPresent
+                isClockIn
                   ? 'bg-emerald-600'
+                  : isClockOut
+                  ? 'bg-blue-600'
+                  : isIzin
+                  ? 'bg-violet-600'
                   : isOutOfRadius
                   ? 'bg-rose-600'
                   : 'bg-amber-600'
               }`}
             >
-              {isPresent ? (
+              {isClockIn ? (
+                <LogIn className="w-5 h-5" />
+              ) : isClockOut ? (
+                <LogOut className="w-5 h-5" />
+              ) : isIzin ? (
+                <FileText className="w-5 h-5" />
+              ) : isPresent ? (
                 <ShieldCheck className="w-5 h-5" />
               ) : (
                 <ShieldAlert className="w-5 h-5" />
@@ -138,14 +154,20 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
             <div>
               <span
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
-                  isPresent
+                  isClockIn
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : isClockOut
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : isIzin
+                    ? 'bg-violet-50 text-violet-700 border border-violet-200'
                     : isOutOfRadius
                     ? 'bg-rose-50 text-rose-700 border border-rose-200'
                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                 }`}
               >
-                {isPresent && <ShieldCheck className="w-3.5 h-3.5" />}
+                {isClockIn && <LogIn className="w-3.5 h-3.5" />}
+                {isClockOut && <LogOut className="w-3.5 h-3.5" />}
+                {isIzin && <FileText className="w-3.5 h-3.5" />}
                 {isOutOfRadius && <MapPin className="w-3.5 h-3.5" />}
                 {isMismatch && <ShieldAlert className="w-3.5 h-3.5" />}
                 {attendance.status}
@@ -153,6 +175,32 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
             </div>
           </div>
 
+          {/* Content based on status type */}
+          {isIzin ? (
+            /* Izin Status - Show leave info instead of biometric/GPS */
+            <div className="p-5 bg-violet-50 rounded-xl border border-violet-200">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-violet-600" />
+                </div>
+                <div>
+                  <h5 className="text-sm font-bold text-violet-800">
+                    Karyawan Izin (Disetujui)
+                  </h5>
+                  <p className="text-xs text-violet-600 mt-0.5">
+                    Log ini dibuat otomatis setelah permohonan izin disetujui oleh admin.
+                  </p>
+                </div>
+              </div>
+              <div className="p-3 bg-white/80 rounded-lg border border-violet-100 text-xs text-violet-700">
+                <div className="flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5 text-violet-500" />
+                  <span>Data geofencing dan verifikasi wajah tidak tersedia untuk status Izin.</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Biometric Comparison: Master Photo vs Attendance Photo */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -348,6 +396,8 @@ export default function AttendanceDetailModal({ attendance, onClose }) {
               </a>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}

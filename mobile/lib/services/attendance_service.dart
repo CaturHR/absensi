@@ -99,7 +99,7 @@ class AttendanceResult {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     return AttendanceResult(
       isSuccess: json['success'] == true,
-      status: data['status']?.toString() ?? (json['success'] == true ? 'Hadir' : 'Gagal'),
+      status: data['status']?.toString() ?? (json['success'] == true ? 'Clock In' : 'Gagal'),
       message: json['message']?.toString() ?? 'Proses presensi selesai.',
       type: data['type']?.toString(),
       time: data['time']?.toString(),

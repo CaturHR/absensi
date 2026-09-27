@@ -17,7 +17,7 @@ import { MOCK_USERS } from '../../data/mockData';
 import { getImageUrl } from '../../utils/imageUrl';
 
 export default function UserManagement() {
-  const [users, setUsers] = useState(MOCK_USERS);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,7 +31,7 @@ export default function UserManagement() {
         setUsers(res.data);
       }
     } catch {
-      setUsers(MOCK_USERS);
+      setUsers([]);
     } finally {
       setLoading(false);
     }

@@ -17,6 +17,9 @@ import {
   ShieldAlert,
   Sparkles,
   Download,
+  LogIn,
+  LogOut,
+  FileText,
 } from 'lucide-react';
 import AttendanceDetailModal from './AttendanceDetailModal';
 import { fetchAttendanceLogs } from '../../services/api';
@@ -24,14 +27,14 @@ import { MOCK_ATTENDANCE_LOGS } from '../../data/mockData';
 import { getImageUrl } from '../../utils/imageUrl';
 
 export default function AttendanceLog() {
-  const [logs, setLogs] = useState(MOCK_ATTENDANCE_LOGS);
+  const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isMockMode, setIsMockMode] = useState(true);
+  const [isMockMode, setIsMockMode] = useState(false);
   const itemsPerPage = 6;
 
   // Fetch data on load
@@ -44,12 +47,12 @@ export default function AttendanceLog() {
       });
       if (response && response.data) {
         setLogs(response.data);
-        setIsMockMode(response.isMock ?? true);
+        setIsMockMode(response.isMock ?? false);
       }
     } catch (err) {
-      console.warn('Fallback to embedded mock data:', err);
-      setLogs(MOCK_ATTENDANCE_LOGS);
-      setIsMockMode(true);
+      console.warn('Gagal memuat log absensi:', err);
+      setLogs([]);
+      setIsMockMode(false);
     } finally {
       setLoading(false);
     }
@@ -62,13 +65,15 @@ export default function AttendanceLog() {
   // Metric summaries
   const metrics = useMemo(() => {
     const total = logs.length;
-    const hadir = logs.filter((l) => l.status === 'Hadir').length;
+    const clockIn = logs.filter((l) => l.status === 'Clock In').length;
+    const clockOut = logs.filter((l) => l.status === 'Clock Out').length;
+    const izin = logs.filter((l) => l.status === 'Izin').length;
     const outOfRadius = logs.filter((l) => l.status === 'Di Luar Radius').length;
     const mismatch = logs.filter(
       (l) => l.status === 'Wajah Tidak Cocok' || l.status === 'Gagal Verifikasi Wajah'
     ).length;
 
-    return { total, hadir, outOfRadius, mismatch };
+    return { total, clockIn, clockOut, izin, outOfRadius, mismatch };
   }, [logs]);
 
   // Client-side filtering for immediate snappy responsiveness
@@ -170,7 +175,7 @@ export default function AttendanceLog() {
       </div>
 
       {/* KPI Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total Attendance Card */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between">
@@ -192,26 +197,72 @@ export default function AttendanceLog() {
           </div>
         </div>
 
-        {/* Hadir (Hijau) */}
+        {/* Clock In (Hijau) */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-              Hadir Valid
+              Clock In
             </span>
             <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="w-5 h-5" />
+              <LogIn className="w-5 h-5" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-emerald-600 font-mono">
-              {metrics.hadir}
+              {metrics.clockIn}
             </span>
             <span className="text-xs text-emerald-700/80 font-medium">
-              ({metrics.total ? Math.round((metrics.hadir / metrics.total) * 100) : 0}%)
+              ({metrics.total ? Math.round((metrics.clockIn / metrics.total) * 100) : 0}%)
             </span>
           </div>
           <div className="mt-2 text-xs text-slate-500">
-            Radius aman & biometrik cocok
+            Masuk kantor berhasil
+          </div>
+        </div>
+
+        {/* Clock Out (Biru) */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-700">
+              Clock Out
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <LogOut className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-blue-600 font-mono">
+              {metrics.clockOut}
+            </span>
+            <span className="text-xs text-blue-700/80 font-medium">
+              ({metrics.total ? Math.round((metrics.clockOut / metrics.total) * 100) : 0}%)
+            </span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            Pulang kantor berhasil
+          </div>
+        </div>
+
+        {/* Izin (Ungu) */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-violet-700">
+              Izin
+            </span>
+            <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center text-violet-600">
+              <FileText className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-violet-600 font-mono">
+              {metrics.izin}
+            </span>
+            <span className="text-xs text-violet-700/80 font-medium">
+              ({metrics.total ? Math.round((metrics.izin / metrics.total) * 100) : 0}%)
+            </span>
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            Izin disetujui admin
           </div>
         </div>
 
@@ -235,29 +286,6 @@ export default function AttendanceLog() {
           </div>
           <div className="mt-2 text-xs text-slate-500">
             Melebihi jarak batas kantor
-          </div>
-        </div>
-
-        {/* Wajah Tidak Cocok (Merah / Warning) */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-700">
-              Anomali Wajah
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-amber-600 font-mono">
-              {metrics.mismatch}
-            </span>
-            <span className="text-xs text-amber-700/80 font-medium">
-              ({metrics.total ? Math.round((metrics.mismatch / metrics.total) * 100) : 0}%)
-            </span>
-          </div>
-          <div className="mt-2 text-xs text-slate-500">
-            Skor kemiripan &lt; ambang batas
           </div>
         </div>
       </div>
@@ -293,7 +321,9 @@ export default function AttendanceLog() {
               className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-moss/30 focus:border-moss cursor-pointer"
             >
               <option value="all">Semua Status</option>
-              <option value="Hadir">Hadir (Valid)</option>
+              <option value="Clock In">Clock In</option>
+              <option value="Clock Out">Clock Out</option>
+              <option value="Izin">Izin</option>
               <option value="Di Luar Radius">Di Luar Radius</option>
               <option value="Wajah Tidak Cocok">Wajah Tidak Cocok</option>
             </select>
@@ -345,8 +375,6 @@ export default function AttendanceLog() {
                 </tr>
               ) : (
                 paginatedLogs.map((log) => {
-                  const isPresent = log.status === 'Hadir';
-                  const isOutOfRadius = log.status === 'Di Luar Radius';
                   const dateObj = new Date(log.created_at);
                   const dateStr = dateObj.toLocaleDateString('id-ID', {
                     day: 'numeric',
@@ -410,12 +438,22 @@ export default function AttendanceLog() {
 
                       {/* Status Badges */}
                       <td className="py-3.5 px-4">
-                        {isPresent ? (
+                        {log.status === 'Clock In' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Hadir
+                            <LogIn className="w-3.5 h-3.5" />
+                            Clock In
                           </span>
-                        ) : isOutOfRadius ? (
+                        ) : log.status === 'Clock Out' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                            <LogOut className="w-3.5 h-3.5" />
+                            Clock Out
+                          </span>
+                        ) : log.status === 'Izin' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                            <FileText className="w-3.5 h-3.5" />
+                            Izin
+                          </span>
+                        ) : log.status === 'Di Luar Radius' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                             <MapPinOff className="w-3.5 h-3.5" />
                             Di Luar Radius

@@ -27,6 +27,12 @@ export async function checkBackendStatus() {
   }
 }
 
+export function handleUnauthorized() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('admin_user');
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+}
+
 /**
  * Helper untuk mengambil auth token dari localStorage jika ada
  */
@@ -49,40 +55,46 @@ export async function fetchAttendanceLogs(params = {}) {
       headers: { credentials: 'include', ...getAuthHeader() },
     });
 
+    if (res.status === 401) {
+      handleUnauthorized();
+      return { success: false, data: [], isMock: false, error: 'Unauthorized' };
+    }
+
     if (res.ok) {
       const data = await res.json();
       return { success: true, data: data.data || [], isMock: false };
     }
   } catch (err) {
     console.info('Backend unreachable, using Mock Attendance Logs:', err.message);
+    // Fallback to Mock Data hanya jika backend tidak bisa dijangkau sama sekali
+    let filtered = [...localLogs];
+    if (params.status && params.status !== 'all') {
+      filtered = filtered.filter((log) => log.status === params.status);
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      filtered = filtered.filter(
+        (log) =>
+          log.user_name.toLowerCase().includes(q) ||
+          log.user_nip.toLowerCase().includes(q) ||
+          (log.department && log.department.toLowerCase().includes(q))
+      );
+    }
+
+    return {
+      success: true,
+      data: filtered,
+      pagination: {
+        total: filtered.length,
+        page: 1,
+        totalPages: 1,
+        limit: filtered.length,
+      },
+      isMock: true,
+    };
   }
 
-  // Fallback to Mock Data
-  let filtered = [...localLogs];
-  if (params.status && params.status !== 'all') {
-    filtered = filtered.filter((log) => log.status === params.status);
-  }
-  if (params.search) {
-    const q = params.search.toLowerCase();
-    filtered = filtered.filter(
-      (log) =>
-        log.user_name.toLowerCase().includes(q) ||
-        log.user_nip.toLowerCase().includes(q) ||
-        (log.department && log.department.toLowerCase().includes(q))
-    );
-  }
-
-  return {
-    success: true,
-    data: filtered,
-    pagination: {
-      total: filtered.length,
-      page: 1,
-      totalPages: 1,
-      limit: filtered.length,
-    },
-    isMock: true,
-  };
+  return { success: false, data: [], isMock: false };
 }
 
 /**
@@ -93,16 +105,21 @@ export async function fetchAttendanceDetail(id) {
     const res = await fetch(`/api/attendance/${id}`, {
       headers: { ...getAuthHeader() },
     });
+    if (res.status === 401) {
+      handleUnauthorized();
+      return { success: false, data: null, isMock: false };
+    }
     if (res.ok) {
       const data = await res.json();
       return { success: true, data: data.data, isMock: false };
     }
   } catch (err) {
     console.info('Backend unreachable, using Mock Detail:', err.message);
+    const log = localLogs.find((item) => item.id === Number(id));
+    return { success: true, data: log || null, isMock: true };
   }
 
-  const log = localLogs.find((item) => item.id === Number(id));
-  return { success: true, data: log || null, isMock: true };
+  return { success: false, data: null, isMock: false };
 }
 
 /**
@@ -113,15 +130,20 @@ export async function fetchUsers() {
     const res = await fetch('/api/users', {
       headers: { ...getAuthHeader() },
     });
+    if (res.status === 401) {
+      handleUnauthorized();
+      return { success: false, data: [], isMock: false, error: 'Unauthorized' };
+    }
     if (res.ok) {
       const data = await res.json();
       return { success: true, data: data.data || [], isMock: false };
     }
   } catch (err) {
     console.info('Backend unreachable, using Mock Users:', err.message);
+    return { success: true, data: localUsers, isMock: true };
   }
 
-  return { success: true, data: localUsers, isMock: true };
+  return { success: false, data: [], isMock: false };
 }
 
 /**
@@ -199,6 +221,10 @@ export async function fetchOfficeLocation() {
     const res = await fetch('/api/locations', {
       headers: { ...getAuthHeader() },
     });
+    if (res.status === 401) {
+      handleUnauthorized();
+      return { success: false, data: null, isMock: false };
+    }
     if (res.ok) {
       const data = await res.json();
       // Ambil lokasi aktif
@@ -207,9 +233,10 @@ export async function fetchOfficeLocation() {
     }
   } catch (err) {
     console.info('Backend unreachable, using Mock Location:', err.message);
+    return { success: true, data: localOffice, isMock: true };
   }
 
-  return { success: true, data: localOffice, isMock: true };
+  return { success: false, data: null, isMock: false };
 }
 
 /**
@@ -264,20 +291,25 @@ export async function fetchLeaveRequests(params = {}) {
       headers: { ...getAuthHeader() },
     });
 
+    if (res.status === 401) {
+      handleUnauthorized();
+      return { success: false, data: [], isMock: false, error: 'Unauthorized' };
+    }
+
     if (res.ok) {
       const data = await res.json();
       return { success: true, data: data.data || [], isMock: false };
     }
   } catch (err) {
     console.info('Backend unreachable, using Mock Leave Data:', err.message);
+    let filtered = [...localLeaves];
+    if (params.status && params.status !== 'all') {
+      filtered = filtered.filter((l) => l.status === params.status);
+    }
+    return { success: true, data: filtered, isMock: true };
   }
 
-  // Fallback to mock
-  let filtered = [...localLeaves];
-  if (params.status && params.status !== 'all') {
-    filtered = filtered.filter((l) => l.status === params.status);
-  }
-  return { success: true, data: filtered, isMock: true };
+  return { success: false, data: [], isMock: false };
 }
 
 /**

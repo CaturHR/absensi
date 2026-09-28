@@ -16,15 +16,14 @@ const Attendance = {
     distance,
     face_confidence,
     status,
-    type = 'in',
     photo,
     location_id,
   }) => {
     const [result] = await pool.execute(
       `INSERT INTO attendance_logs 
-        (user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [user_id, latitude, longitude, distance, face_confidence, status, type, photo, location_id]
+        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [user_id, latitude, longitude, distance, face_confidence, status, photo, location_id]
     );
     return {
       id: result.insertId,
@@ -34,7 +33,6 @@ const Attendance = {
       distance,
       face_confidence,
       status,
-      type,
       photo,
       location_id,
     };
@@ -172,33 +170,19 @@ const Attendance = {
    */
   getTodayStatus: async (userId) => {
     const [rows] = await pool.execute(
-      `SELECT id, user_id, status, type, created_at FROM attendance_logs 
-       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status = 'Hadir'
+      `SELECT id, user_id, status, created_at FROM attendance_logs 
+       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status IN ('Clock In', 'Clock Out')
        ORDER BY created_at ASC`,
       [userId]
     );
-    const clockIn = rows.find((r) => r.type === 'clock_in') || null;
-    const clockOut = rows.find((r) => r.type === 'clock_out') || null;
+    const clockIn = rows.find((r) => r.status === 'Clock In') || null;
+    const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
     return {
       clockIn,
       clockOut,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
     };
-  },
-
-  /**
-   * Update status verifikasi / kehadiran absensi (misal: match/mismatch/Hadir/Ditolak)
-   * @param {number} id
-   * @param {object} data - { status, notes }
-   * @returns {Promise<boolean>}
-   */
-  updateStatus: async (id, { status, notes }) => {
-    await pool.execute(
-      'UPDATE attendance_logs SET status = ?, notes = COALESCE(?, notes) WHERE id = ?',
-      [status, notes || null, id]
-    );
-    return true;
   },
 };
 

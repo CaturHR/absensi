@@ -26,6 +26,12 @@ export async function checkBackendStatus() {
   }
 }
 
+export function handleUnauthorized() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('admin_user');
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+}
+
 /**
  * 1. Ambil Semua Log Absensi (dengan filter & pagination)
  */

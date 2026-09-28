@@ -33,4 +33,7 @@ router.get('/today', authMiddleware, attendanceController.getTodayStatus);
 // Detail absensi (user bisa lihat milik sendiri, admin bisa lihat semua)
 router.get('/:id', authMiddleware, attendanceController.getAttendanceById);
 
+// Update status verifikasi absensi / kecocokan wajah (admin only)
+router.patch('/:id/status', authMiddleware, adminOnly, attendanceController.updateStatus);
+
 module.exports = router;

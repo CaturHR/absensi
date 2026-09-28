@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import LoginPage from './components/layout/LoginPage';
-import Sidebar from './components/layout/Sidebar';
-import Header from './components/layout/Header';
-import AttendanceLog from './components/attendance/AttendanceLog';
-import UserManagement from './components/users/UserManagement';
-import OfficeSettings from './components/settings/OfficeSettings';
-import LeaveApproval from './components/leaves/LeaveApproval';
-import { checkBackendStatus } from './services/api';
+import MenuAbsensi from './components/layout/MenuAbsensi';
+import DataUserPage from './components/users/DataUserPage';
+import DataIzinPage from './components/leaves/DataIzinPage';
+import TambahLokasiPage from './components/settings/TambahLokasiPage';
+import ExportDataPage from './components/export/ExportDataPage';
+import KecocokanWajahPage from './components/face/KecocokanWajahPage';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('attendance');
-  const [isBackendOnline, setIsBackendOnline] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showMenu, setShowMenu] = useState(true);
 
-  // Check if user is already logged in on mount
+  // Cek token & status login awal
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('admin_user');
@@ -35,20 +33,10 @@ export default function App() {
     setCheckingAuth(false);
   }, []);
 
-  // Check backend server status periodically
-  useEffect(() => {
-    async function checkStatus() {
-      const online = await checkBackendStatus();
-      setIsBackendOnline(online);
-    }
-    checkStatus();
-    const interval = setInterval(checkStatus, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleLoginSuccess = (user) => {
     setAdminUser(user);
     setIsLoggedIn(true);
+    setShowMenu(true);
   };
 
   const handleLogout = () => {
@@ -56,68 +44,70 @@ export default function App() {
     localStorage.removeItem('admin_user');
     setIsLoggedIn(false);
     setAdminUser(null);
-    setActiveTab('attendance');
+    setActiveTab(null);
+    setShowMenu(true);
   };
 
-  // Tampilkan loading saat cek auth awal
+  const handleSelectMenu = (menuId) => {
+    // 5 Menu Utama Sesuai Gambar:
+    // 1. leaves -> Izin (DataIzinPage)
+    // 2. users -> Tambah User (DataUserPage)
+    // 3. settings -> Tambah Titik Lokasi (TambahLokasiPage)
+    // 4. export -> Export Data (ExportDataPage)
+    // 5. face -> Kecocokan Wajah (KecocokanWajahPage)
+    setActiveTab(menuId);
+    setShowMenu(false);
+  };
+
+  const handleBackToMenu = () => {
+    setShowMenu(true);
+    setActiveTab(null);
+  };
+
+  // Loading indicator saat cek status autentikasi
   if (checkingAuth) {
     return (
-      <div className="min-h-screen bg-[#f7f7f2] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-moss border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#dce6f0] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-[#1e5a8a] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Tampilkan halaman login jika belum login
+  // Tampilkan halaman Login jika belum terautentikasi
   if (!isLoggedIn) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return (
-    <div className="min-h-screen bg-[#f7f7f2] flex flex-col lg:flex-row text-slate-800 font-sans antialiased selection:bg-moss/20 selection:text-moss">
-      {/* Mobile Drawer Backdrop */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-ink/50 backdrop-blur-xs z-40 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+  // Tampilkan Menu Absensi (Hub 5 Menu) setelah login atau saat kembali
+  if (showMenu || !activeTab) {
+    return <MenuAbsensi onSelectMenu={handleSelectMenu} onLogout={handleLogout} />;
+  }
 
-      {/* Sidebar (Responsive) */}
-      <div
-        className={`fixed lg:static inset-y-0 left-0 z-50 transform ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 transition-transform duration-200 ease-in-out`}
-      >
-        <Sidebar
-          activeTab={activeTab}
-          onSelectTab={(tab) => {
-            setActiveTab(tab);
-            setMobileMenuOpen(false);
-          }}
-          isBackendOnline={isBackendOnline}
-          onLogout={handleLogout}
-        />
-      </div>
+  // 1. Menu: Izin
+  if (activeTab === 'leaves') {
+    return <DataIzinPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+  }
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header
-          activeTab={activeTab}
-          isBackendOnline={isBackendOnline}
-          onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
-          adminUser={adminUser}
-          onLogout={handleLogout}
-          onSelectTab={setActiveTab}
-        />
+  // 2. Menu: Tambah User
+  if (activeTab === 'users') {
+    return <DataUserPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+  }
 
-        <main className="flex-1 p-4 sm:p-8 max-w-7xl w-full mx-auto animate-rise-in">
-          {activeTab === 'attendance' && <AttendanceLog />}
-          {activeTab === 'leaves' && <LeaveApproval />}
-          {activeTab === 'users' && <UserManagement />}
-          {activeTab === 'settings' && <OfficeSettings />}
-        </main>
-      </div>
-    </div>
-  );
+  // 3. Menu: Tambah Titik Lokasi
+  if (activeTab === 'settings') {
+    return <TambahLokasiPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+  }
+
+  // 4. Menu: Export Data
+  if (activeTab === 'export') {
+    return <ExportDataPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+  }
+
+  // 5. Menu: Kecocokan Wajah
+  if (activeTab === 'face') {
+    return <KecocokanWajahPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+  }
+
+  // Fallback ke Menu Utama
+  return <MenuAbsensi onSelectMenu={handleSelectMenu} onLogout={handleLogout} />;
 }

@@ -46,7 +46,7 @@ const Attendance = {
    * @param {object} filters - { page, limit, user_id, status, date_from, date_to }
    * @returns {Promise<{ data: Array, total: number, page: number, totalPages: number }>}
    */
-  findAll: async ({ page = 1, limit = 20, user_id, status, date_from, date_to } = {}) => {
+  findAll: async ({ page = 1, limit = 20, user_id, status, date_from, date_to, location_id } = {}) => {
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -57,6 +57,10 @@ const Attendance = {
     if (status) {
       whereClause += ' AND a.status = ?';
       params.push(status);
+    }
+    if (location_id) {
+      whereClause += ' AND a.location_id = ?';
+      params.push(location_id);
     }
     if (date_from) {
       whereClause += ' AND DATE(a.created_at) >= ?';
@@ -77,8 +81,8 @@ const Attendance = {
     // Pagination
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT a.*, u.name as user_name, u.nip as user_nip, u.email as user_email,
-              l.name as location_name
+      `SELECT a.*, a.photo as attendance_photo, u.name as user_name, u.nip as user_nip, u.email as user_email,
+              u.face_photo as master_photo, l.name as location_name
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
        LEFT JOIN locations l ON a.location_id = l.id
@@ -173,14 +177,28 @@ const Attendance = {
        ORDER BY created_at ASC`,
       [userId]
     );
-    const clockIn = rows.find((r) => r.type === 'in') || null;
-    const clockOut = rows.find((r) => r.type === 'out') || null;
+    const clockIn = rows.find((r) => r.type === 'clock_in') || null;
+    const clockOut = rows.find((r) => r.type === 'clock_out') || null;
     return {
       clockIn,
       clockOut,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
     };
+  },
+
+  /**
+   * Update status verifikasi / kehadiran absensi (misal: match/mismatch/Hadir/Ditolak)
+   * @param {number} id
+   * @param {object} data - { status, notes }
+   * @returns {Promise<boolean>}
+   */
+  updateStatus: async (id, { status, notes }) => {
+    await pool.execute(
+      'UPDATE attendance_logs SET status = ?, notes = COALESCE(?, notes) WHERE id = ?',
+      [status, notes || null, id]
+    );
+    return true;
   },
 };
 

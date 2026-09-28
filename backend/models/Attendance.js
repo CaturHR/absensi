@@ -44,7 +44,7 @@ const Attendance = {
    * @param {object} filters - { page, limit, user_id, status, date_from, date_to }
    * @returns {Promise<{ data: Array, total: number, page: number, totalPages: number }>}
    */
-  findAll: async ({ page = 1, limit = 20, user_id, status, date_from, date_to } = {}) => {
+  findAll: async ({ page = 1, limit = 20, user_id, status, date_from, date_to, location_id } = {}) => {
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -55,6 +55,10 @@ const Attendance = {
     if (status) {
       whereClause += ' AND a.status = ?';
       params.push(status);
+    }
+    if (location_id) {
+      whereClause += ' AND a.location_id = ?';
+      params.push(location_id);
     }
     if (date_from) {
       whereClause += ' AND DATE(a.created_at) >= ?';
@@ -75,8 +79,8 @@ const Attendance = {
     // Pagination
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT a.*, u.name as user_name, u.nip as user_nip, u.email as user_email,
-              l.name as location_name
+      `SELECT a.*, a.photo as attendance_photo, u.name as user_name, u.nip as user_nip, u.email as user_email,
+              u.face_photo as master_photo, l.name as location_name
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
        LEFT JOIN locations l ON a.location_id = l.id
@@ -178,26 +182,6 @@ const Attendance = {
       clockOut,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
-    };
-  },
-
-  /**
-   * Buat log absensi dengan status 'Izin' ketika leave request di-approve.
-   * @param {object} data - { user_id, reason }
-   * @returns {Promise<object>}
-   */
-  createLeaveLog: async ({ user_id, reason }) => {
-    const [result] = await pool.execute(
-      `INSERT INTO attendance_logs 
-        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
-       VALUES (?, 0, 0, 0, NULL, 'Izin', NULL, NULL)`,
-      [user_id]
-    );
-    return {
-      id: result.insertId,
-      user_id,
-      status: 'Izin',
-      reason,
     };
   },
 };

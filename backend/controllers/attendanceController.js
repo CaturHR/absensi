@@ -267,7 +267,7 @@ const attendanceController = {
    */
   getAllAttendance: async (req, res, next) => {
     try {
-      const { page, limit, user_id, status, date_from, date_to } = req.query;
+      const { page, limit, user_id, status, date_from, date_to, location_id } = req.query;
 
       const result = await Attendance.findAll({
         page: parseInt(page, 10) || 1,
@@ -276,6 +276,7 @@ const attendanceController = {
         status,
         date_from,
         date_to,
+        location_id: location_id ? parseInt(location_id, 10) : undefined,
       });
 
       return res.status(200).json({
@@ -328,10 +329,6 @@ const attendanceController = {
     }
   },
 
-  /**
-   * GET /api/attendance/today
-   * Ambil status Clock In & Clock Out user yang sedang login untuk hari ini.
-   */
   getTodayStatus: async (req, res, next) => {
     try {
       const userId = req.user.id;
@@ -339,6 +336,33 @@ const attendanceController = {
       return res.status(200).json({
         success: true,
         data: status,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * PATCH /api/attendance/:id/status
+   * Update status verifikasi kehadiran / face approval (admin only).
+   */
+  updateStatus: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { status, notes } = req.body;
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: 'Status wajib diisi.',
+        });
+      }
+
+      await Attendance.updateStatus(parseInt(id, 10), { status, notes });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Status absensi berhasil diperbarui.',
       });
     } catch (error) {
       next(error);

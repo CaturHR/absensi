@@ -15,6 +15,13 @@ const { uploadFace } = require('../config/multer');
  */
 
 router.get('/', authMiddleware, adminOnly, userController.getAllUsers);
+router.post(
+  '/',
+  authMiddleware,
+  adminOnly,
+  uploadFace.single('face_photo'),
+  userController.createUser
+);
 router.get('/:id', authMiddleware, adminOnly, userController.getUserById);
 router.put('/:id', authMiddleware, adminOnly, userController.updateUser);
 router.delete('/:id', authMiddleware, adminOnly, userController.deleteUser);

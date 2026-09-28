@@ -9,6 +9,84 @@ const { UPLOAD_DIR_FACES } = require('../config/multer');
  */
 const userController = {
   /**
+   * POST /api/users
+   * Tambah user baru (dengan upload foto master wajah) - Admin only.
+   */
+  createUser: async (req, res, next) => {
+    try {
+      const { name, email, nip, password, role } = req.body;
+
+      if (!name || !email || !nip || !password) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'Nama, email, NIP, dan password wajib diisi.',
+        });
+      }
+
+      // Cek apakah email sudah terdaftar
+      const existingEmail = await User.findByEmail(email);
+      if (existingEmail) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'Email atau nama pengguna sudah digunakan.',
+        });
+      }
+
+      // Cek apakah NIP sudah terdaftar
+      const existingNip = await User.findByNip(nip);
+      if (existingNip) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'NIP pegawai sudah terdaftar.',
+        });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(12);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Path foto master wajah
+      const facePhoto = req.file ? `faces/${req.file.filename}` : null;
+
+      const newUser = await User.create({
+        name: name.trim(),
+        email: email.trim(),
+        nip: nip.trim(),
+        password: hashedPassword,
+        role: role || 'user',
+        face_photo: facePhoto,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'User baru berhasil ditambahkan.',
+        data: {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          nip: newUser.nip,
+          role: newUser.role,
+          face_photo: newUser.face_photo,
+        },
+      });
+    } catch (error) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      next(error);
+    }
+  },
+
+  /**
    * GET /api/users
    * Ambil semua user.
    */

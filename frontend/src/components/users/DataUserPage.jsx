@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { fetchUsers, deleteUser, createUser } from '../../services/api';
+import { fetchUsers, deleteUser, createUser, updateUser } from '../../services/api';
+import { getImageUrl } from '../../utils/image';
 import AddUserModal from './AddUserModal';
+import UserPhotoModal from './UserPhotoModal';
 
 export default function DataUserPage({ onBack, onLogout }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPhotoUser, setSelectedPhotoUser] = useState(null);
   const [notification, setNotification] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
 
   // Form state for inline edit modal
   const [editForm, setEditForm] = useState({ name: '', email: '', nip: '', password: '' });
   const [showEditModal, setShowEditModal] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -40,6 +44,13 @@ export default function DataUserPage({ onBack, onLogout }) {
     showNotif('success', `User "${newUser.name}" berhasil ditambahkan.`);
   };
 
+  const handlePhotoUpdated = (updatedUser) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === updatedUser.id ? { ...u, face_photo: updatedUser.face_photo } : u))
+    );
+    showNotif('success', `Foto master wajah "${updatedUser.name}" berhasil diperbarui.`);
+  };
+
   const handleDeleteUser = async (user) => {
     if (window.confirm(`Yakin ingin menghapus user "${user.name}"?`)) {
       try {
@@ -63,18 +74,32 @@ export default function DataUserPage({ onBack, onLogout }) {
     setShowEditModal(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingUser) return;
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === editingUser.id
-          ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip }
-          : u
-      )
-    );
-    showNotif('success', `Data "${editForm.name}" berhasil diperbarui.`);
-    setShowEditModal(false);
-    setEditingUser(null);
+    setSavingEdit(true);
+    try {
+      await updateUser(editingUser.id, {
+        name: editForm.name,
+        email: editForm.email,
+        nip: editForm.nip,
+        ...(editForm.password ? { password: editForm.password } : {}),
+      });
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editingUser.id
+            ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip }
+            : u
+        )
+      );
+      showNotif('success', `Data "${editForm.name}" berhasil diperbarui.`);
+      setShowEditModal(false);
+      setEditingUser(null);
+    } catch (err) {
+      showNotif('error', 'Gagal memperbarui user: ' + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const showNotif = (type, message) => {
@@ -228,12 +253,54 @@ export default function DataUserPage({ onBack, onLogout }) {
                         {user.nip || '-'}
                       </td>
                       <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <div style={styles.avatarCell}>
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                          </svg>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhotoUser(user)}
+                          style={styles.avatarButton}
+                          title={`Klik untuk melihat & mengubah foto master "${user.name}"`}
+                          aria-label={`Lihat dan ubah foto ${user.name}`}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'scale(1.08)';
+                            e.currentTarget.style.borderColor = '#1e5a8a';
+                            e.currentTarget.style.boxShadow = '0 3px 10px rgba(30, 90, 138, 0.25)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'scale(1)';
+                            e.currentTarget.style.borderColor = '#d1d5db';
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          {user.face_photo ? (
+                            <img
+                              src={getImageUrl(user.face_photo)}
+                              alt={user.name}
+                              style={styles.avatarImg}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.parentElement.querySelector('.avatar-fallback');
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className="avatar-fallback"
+                            style={{
+                              ...styles.avatarFallback,
+                              display: user.face_photo ? 'none' : 'flex',
+                            }}
+                          >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          </div>
+                          <div style={styles.avatarBadgeOverlay} title="Ubah Foto">
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                              <circle cx="12" cy="13" r="4" />
+                            </svg>
+                          </div>
+                        </button>
                       </td>
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <div style={styles.actionCell}>
@@ -277,6 +344,14 @@ export default function DataUserPage({ onBack, onLogout }) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onUserCreated={handleUserCreated}
+      />
+
+      {/* User Master Photo View & Edit Modal */}
+      <UserPhotoModal
+        isOpen={Boolean(selectedPhotoUser)}
+        user={selectedPhotoUser}
+        onClose={() => setSelectedPhotoUser(null)}
+        onPhotoUpdated={handlePhotoUpdated}
       />
 
       {/* Edit User Modal */}
@@ -342,11 +417,14 @@ export default function DataUserPage({ onBack, onLogout }) {
               >
                 Batal
               </button>
-              <button onClick={handleSaveEdit} style={styles.modalSaveBtn}
+              <button
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+                style={styles.modalSaveBtn}
                 onMouseEnter={(e) => e.currentTarget.style.background = '#174d76'}
                 onMouseLeave={(e) => e.currentTarget.style.background = '#1e5a8a'}
               >
-                Simpan Perubahan
+                {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
               </button>
             </div>
           </div>
@@ -572,14 +650,49 @@ const styles = {
     color: '#9ca3af',
     fontSize: 13,
   },
-  avatarCell: {
-    width: 36,
-    height: 36,
+  avatarButton: {
+    position: 'relative',
+    width: 38,
+    height: 38,
     borderRadius: '50%',
-    background: '#f0f4f8',
+    border: '2px solid #cbd5e1',
+    background: '#f1f5f9',
+    padding: 0,
+    cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+    outline: 'none',
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    objectFit: 'cover',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#eaf0f7',
+  },
+  avatarBadgeOverlay: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 15,
+    height: 15,
+    borderRadius: '50%',
+    background: '#1e5a8a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1.5px solid #ffffff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
   },
   actionCell: {
     display: 'flex',

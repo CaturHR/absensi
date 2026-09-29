@@ -134,6 +134,47 @@ export async function createUser(formData) {
 }
 
 /**
+ * 4b. Update Data Pengguna
+ */
+export async function updateUser(id, userData) {
+  const res = await fetch(`/api/users/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify(userData),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Gagal memperbarui data pengguna.');
+  }
+
+  return { success: true, data: data.data };
+}
+
+/**
+ * 4c. Upload/Update Foto Master Wajah Pengguna
+ */
+export async function updateUserFace(id, formData) {
+  const res = await fetch(`/api/users/${id}/face`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeader(),
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Gagal mengunggah foto master wajah.');
+  }
+
+  return { success: true, data: data.data };
+}
+
+/**
  * 5. Hapus Pengguna
  */
 export async function deleteUser(id) {

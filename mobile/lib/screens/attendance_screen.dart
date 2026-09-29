@@ -29,10 +29,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initFrontCamera();
+    _initAttendanceScreen();
+  }
+
+  /// Inisialisasi awal layar: cek status absensi terlebih dahulu
+  Future<void> _initAttendanceScreen() async {
     _fetchQuickLocation();
     _fetchOfficeLocation();
-    _fetchTodayStatus();
+    await _fetchTodayStatus();
+
+    // Matikan / jangan nyalakan kamera jika sudah Clock In hari ini
+    if (mounted) {
+      if (_todayStatus?.hasClockedIn == true) {
+        setState(() {
+          _isCameraLoading = false;
+        });
+      } else {
+        _initFrontCamera();
+      }
+    }
   }
 
   /// Ambil status absensi hari ini (apakah sudah Clock In / Clock Out)
@@ -43,6 +58,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         setState(() {
           _todayStatus = status;
         });
+        if (status?.hasClockedIn == true) {
+          await _disposeCamera();
+        }
       }
     } catch (_) {}
   }
@@ -64,6 +82,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     );
   }
 
+  /// Mematikan dan melepaskan resource kamera hardware
+  Future<void> _disposeCamera() async {
+    final controller = _cameraController;
+    _cameraController = null;
+    if (mounted) {
+      setState(() {
+        _isCameraInitialized = false;
+        _isCameraLoading = false;
+        _cameraErrorMessage = null;
+      });
+    }
+    if (controller != null) {
+      try {
+        await controller.dispose();
+      } catch (e) {
+        debugPrint('Error disposing camera: $e');
+      }
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -73,21 +111,33 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _cameraController;
-
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.inactive) {
-      cameraController.dispose();
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _cameraController?.dispose();
+      _cameraController = null;
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = false;
+        });
+      }
     } else if (state == AppLifecycleState.resumed) {
-      _initFrontCamera();
+      if (!(_todayStatus?.hasClockedIn ?? false)) {
+        _initFrontCamera();
+      }
     }
   }
 
   /// Inisialisasi kamera depan untuk selfie presensi real-time
   Future<void> _initFrontCamera() async {
+    // Jangan inisialisasi jika pengguna sudah Clock In
+    if (_todayStatus?.hasClockedIn == true) {
+      if (mounted) {
+        setState(() {
+          _isCameraLoading = false;
+        });
+      }
+      return;
+    }
+
     if (mounted) {
       setState(() {
         _isCameraLoading = true;
@@ -139,6 +189,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     try {
       await controller.initialize();
       if (!mounted) return;
+      // Jika ternyata sebelum kamera selesai diinit pengguna sudah clock in, batalkan
+      if (_todayStatus?.hasClockedIn == true) {
+        await controller.dispose();
+        setState(() {
+          _isCameraLoading = false;
+        });
+        return;
+      }
+
       setState(() {
         _cameraController = controller;
         _isCameraInitialized = true;
@@ -175,7 +234,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     final isClockIn = type == 'in';
     final actionLabel = isClockIn ? 'Clock In' : 'Clock Out';
 
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+    if (isClockIn && (_cameraController == null || !_cameraController!.value.isInitialized)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kamera belum siap, mohon tunggu sebentar.')),
       );
@@ -184,20 +243,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
     setState(() {
       _isLoading = true;
-      _loadingMessage = 'Mengambil foto wajah real-time...';
+      _loadingMessage = isClockIn
+          ? 'Mengambil foto identifikasi wajah...'
+          : 'Memproses Clock Out...';
     });
 
     try {
       // ──────────────────────────────────────────────
-      // 1. Ambil foto wajah secara real-time
+      // 1. Ambil foto wajah secara real-time HANYA untuk Clock In
       // ──────────────────────────────────────────────
-      final XFile image = await _cameraController!.takePicture();
+      XFile? image;
+      if (isClockIn) {
+        image = await _cameraController!.takePicture();
+      }
 
       // ──────────────────────────────────────────────
       // 2. Ambil koordinat GPS akurat & validasi Anti-Fake GPS
       // ──────────────────────────────────────────────
       setState(() {
-        _loadingMessage = 'Mendeteksi koordinat GPS akurat...';
+        _loadingMessage = isClockIn
+            ? 'Mendeteksi koordinat GPS akurat...'
+            : 'Mendeteksi lokasi Clock Out...';
       });
 
       final Position position = await LocationService.getCurrentPosition();
@@ -207,7 +273,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       // 3. Kirim multipart request ke backend
       // ──────────────────────────────────────────────
       setState(() {
-        _loadingMessage = 'Memverifikasi wajah & lokasi di server...';
+        _loadingMessage = isClockIn
+            ? 'Memverifikasi wajah & lokasi di server...'
+            : 'Menyimpan Clock Out ke server...';
       });
 
       final result = await AttendanceService.submitAttendance(
@@ -219,6 +287,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
       // Refresh status absensi hari ini dari server
       await _fetchTodayStatus();
+
+      // Jika Clock In berhasil, segera matikan kamera
+      final isClockInSuccess = isClockIn && (result.isSuccess || result.status == 'Clock In' || (_todayStatus?.hasClockedIn ?? false));
+      if (isClockInSuccess) {
+        await _disposeCamera();
+      }
 
       // ──────────────────────────────────────────────
       // 4. Tampilkan pop up hasil presensi
@@ -506,9 +580,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: 'Perbarui Status',
-            onPressed: () {
-              _fetchTodayStatus();
+            onPressed: () async {
+              await _fetchTodayStatus();
               _fetchQuickLocation();
+              if (!(_todayStatus?.hasClockedIn ?? false) && _cameraController == null) {
+                _initFrontCamera();
+              }
             },
           ),
         ],
@@ -516,24 +593,127 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background placeholder dari lib/asset/baground/BG.png saat kamera belum aktif
-          if (!_isCameraInitialized) ...[
+          // Background placeholder dari lib/asset/baground/BG.png saat kamera belum aktif atau sudah Clock In
+          if (!_isCameraInitialized || hasClockedIn) ...[
             Image.asset(
               'lib/asset/baground/BG.png',
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const SizedBox(),
             ),
             Container(
-              color: Colors.black.withValues(alpha: 0.65),
+              color: Colors.black.withValues(alpha: 0.70),
             ),
           ],
 
-          // 1. Viewfinder Kamera Depan Real-Time
-          if (_isCameraInitialized && _cameraController != null)
+          // 1. Viewfinder Kamera Depan Real-Time (hanya saat BELUM Clock In)
+          if (!hasClockedIn && _isCameraInitialized && _cameraController != null)
             Center(
               child: AspectRatio(
                 aspectRatio: 1 / _cameraController!.value.aspectRatio,
                 child: CameraPreview(_cameraController!),
+              ),
+            )
+          else if (hasClockedIn)
+            // Tampilan Status setelah Clock In: Kamera Dimatikan
+            Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.90),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: hasClockedOut
+                        ? const Color(0xFF10B981).withValues(alpha: 0.45)
+                        : const Color(0xFF38BDF8).withValues(alpha: 0.45),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: (hasClockedOut ? const Color(0xFF10B981) : const Color(0xFF0284C7)).withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        hasClockedOut ? Icons.task_alt_rounded : Icons.verified_user_rounded,
+                        color: hasClockedOut ? const Color(0xFF34D399) : const Color(0xFF38BDF8),
+                        size: 38,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      hasClockedOut ? 'Presensi Hari Ini Selesai' : 'Clock In Berhasil',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.access_time_rounded, size: 15, color: Colors.white70),
+                          const SizedBox(width: 6),
+                          Text(
+                            hasClockedOut
+                                ? 'In: ${_todayStatus?.clockInTime ?? "-"}  •  Out: ${_todayStatus?.clockOutTime ?? "-"}'
+                                : 'Tercatat pukul ${_todayStatus?.clockInTime ?? "-"}',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF64748B).withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.videocam_off_rounded, size: 16, color: Colors.white70),
+                          SizedBox(width: 6),
+                          Text(
+                            'Kamera Dinonaktifkan',
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      hasClockedOut
+                          ? 'Seluruh rangkaian presensi hari ini telah diselesaikan.'
+                          : 'Kamera dimatikan setelah Clock In berhasil. Untuk Clock Out saat jam pulang, Anda hanya memerlukan verifikasi lokasi GPS.',
+                      style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.45),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             )
           else if (_cameraErrorMessage != null)
@@ -584,11 +764,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                   : const SizedBox.shrink(),
             ),
 
-          // 2. Oval Face Guide Overlay (Frame Wajah Real-Time)
-          CustomPaint(
-            painter: OvalHoleOverlayPainter(),
-            child: Container(),
-          ),
+          // 2. Oval Face Guide Overlay (Frame Wajah Real-Time hanya tampil jika belum Clock In)
+          if (!hasClockedIn && _isCameraInitialized && _cameraController != null)
+            CustomPaint(
+              painter: OvalHoleOverlayPainter(),
+              child: Container(),
+            ),
 
           // 3. Top Info Pill: Status Lokasi GPS & Geofencing Office Proximity
           Positioned(
@@ -662,74 +843,79 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             ),
           ),
 
-          // 4. Instructions Guide Text
+          // 4. Bottom Action & Instruction Guide
           Positioned(
-            bottom: 140,
-            left: 24,
-            right: 24,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: const Text(
-                  'Posisikan wajah Anda tepat di dalam bingkai oval',
-                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ),
-
-          // 5. Bottom Action: Pilihan "Clock In" dan "Clock Out"
-          Positioned(
-            bottom: 24,
+            bottom: 20,
             left: 16,
             right: 16,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Instruction Guide Text
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.70),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Status Info Hari Ini (Ringkasan 1x per hari)
-                  if (hasClockedIn && hasClockedOut)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.task_alt_rounded, color: Color(0xFF10B981), size: 16),
-                          SizedBox(width: 6),
-                          Text(
-                            'Presensi hari ini sudah lengkap (Clock In & Out selesai)',
-                            style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
+                  child: Text(
+                    hasClockedIn && !hasClockedOut
+                        ? 'Kamera dinonaktifkan. Tekan tombol Clock Out untuk presensi pulang'
+                        : (hasClockedIn && hasClockedOut
+                            ? 'Presensi hari ini sudah lengkap (Clock In & Out selesai)'
+                            : 'Posisikan wajah Anda tepat di dalam bingkai oval'),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 10),
 
-                  Row(
+                // 5. Bottom Action: Pilihan "Clock In" dan "Clock Out"
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Status Info Hari Ini (Ringkasan 1x per hari)
+                      if (hasClockedIn && hasClockedOut)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.task_alt_rounded, color: Color(0xFF10B981), size: 16),
+                              SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Presensi hari ini sudah lengkap (Clock In & Out selesai)',
+                                  style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.w600),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      Row(
+                        children: [
                       // ─── TOMBOL CLOCK IN (Absen Masuk) ───
                       Expanded(
                         child: _buildAttendanceButton(
@@ -767,7 +953,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 ],
               ),
             ),
-          ),
+          ],
+        ),
+      ),
 
           // 6. Loading Modal Overlay saat proses berlangsung
           if (_isLoading)

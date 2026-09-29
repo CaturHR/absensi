@@ -68,7 +68,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
@@ -80,7 +80,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(width: 4),
           Text(
             status,
-            style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(color: text, fontSize: 10.5, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -175,7 +175,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         itemBuilder: (context, index) {
                           final item = _historyList[index];
                           final createdAt = item['created_at'] != null
-                              ? DateTime.tryParse(item['created_at'])
+                              ? DateTime.tryParse(item['created_at'])?.toLocal()
                               : null;
 
                           final dateStr = createdAt != null
@@ -207,16 +207,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      dateStr,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF242721),
+                                    Expanded(
+                                      child: Text(
+                                        dateStr,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF242721),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
+                                    const SizedBox(width: 8),
                                     _buildStatusBadge(status),
                                   ],
                                 ),
@@ -233,9 +236,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     if (distance != null) ...[
                                       const Icon(Icons.near_me_outlined, size: 14, color: Colors.black38),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'Jarak: ${(distance as num).toStringAsFixed(0)} m',
-                                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                      Flexible(
+                                        child: Text(
+                                          'Jarak: ${(distance as num).toStringAsFixed(0)} m',
+                                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                     ],
                                   ],

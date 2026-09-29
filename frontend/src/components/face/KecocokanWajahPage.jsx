@@ -438,7 +438,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                     </div>
                   </div>
                   <div style={styles.photoCaption}>
-                    Diambil: {selectedPhotoModal.created_at ? new Date(selectedPhotoModal.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'} ({selectedPhotoModal.type === 'out' ? 'Clock Out' : 'Clock In'})
+                    Diambil: {selectedPhotoModal.created_at ? new Date(selectedPhotoModal.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') : '-'} ({selectedPhotoModal.type === 'out' ? 'Clock Out' : 'Clock In'})
                   </div>
                 </div>
               </div>

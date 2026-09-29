@@ -150,40 +150,83 @@ const Attendance = {
 
   /**
    * Cek apakah user sudah absen hari ini.
+   * Rentang waktu harian: 00:00:00 s/d 23:59:59 WIB.
+   * Reset terjadi otomatis tepat saat pergantian hari setelah pukul 23:59.
    * @param {number} userId
    * @returns {Promise<object|null>}
    */
   findTodayByUserId: async (userId) => {
+    const { startOfDay, endOfDay } = getTodayRangeWIB();
     const [rows] = await pool.execute(
       `SELECT * FROM attendance_logs 
-       WHERE user_id = ? AND DATE(created_at) = CURDATE()
+       WHERE user_id = ? AND created_at >= ? AND created_at <= ?
        ORDER BY created_at DESC LIMIT 1`,
-      [userId]
+      [userId, startOfDay, endOfDay]
     );
     return rows[0] || null;
   },
 
   /**
    * Mengambil status Clock In & Clock Out user untuk hari ini.
+   * Rentang waktu harian: 00:00:00 s/d 23:59:59 WIB.
+   * Reset presensi harian terjadi setelah jam 23:59 (memasuki hari selanjutnya).
    * @param {number} userId
    * @returns {Promise<{ clockIn: object|null, clockOut: object|null, hasClockedIn: boolean, hasClockedOut: boolean }>}
    */
   getTodayStatus: async (userId) => {
+    const { startOfDay, endOfDay } = getTodayRangeWIB();
     const [rows] = await pool.execute(
       `SELECT id, user_id, status, created_at FROM attendance_logs 
-       WHERE user_id = ? AND DATE(created_at) = CURDATE() AND status IN ('Clock In', 'Clock Out')
+       WHERE user_id = ? 
+         AND created_at >= ? 
+         AND created_at <= ? 
+         AND status IN ('Clock In', 'Clock Out')
        ORDER BY created_at ASC`,
-      [userId]
+      [userId, startOfDay, endOfDay]
     );
     const clockIn = rows.find((r) => r.status === 'Clock In') || null;
     const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
+
+    const formatClockTime = (rec) => {
+      if (!rec || !rec.created_at) return null;
+      return new Date(rec.created_at).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      }).replace('.', ':');
+    };
+
     return {
-      clockIn,
-      clockOut,
+      clockIn: clockIn
+        ? {
+            ...clockIn,
+            time: formatClockTime(clockIn),
+          }
+        : null,
+      clockOut: clockOut
+        ? {
+            ...clockOut,
+            time: formatClockTime(clockOut),
+          }
+        : null,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
     };
   },
 };
+
+/**
+ * Helper untuk mendapatkan rentang waktu hari ini dalam zona waktu Indonesia (WIB / Asia/Jakarta).
+ * Hari ini dihitung mulai pukul 00:00:00 hingga pukul 23:59:59 WIB.
+ * Tepat setelah pukul 23:59 (pukul 00:00:00 hari berikutnya), sistem otomatis mereset presensi ke hari baru.
+ */
+function getTodayRangeWIB() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' });
+  const todayStr = formatter.format(now); // Format: YYYY-MM-DD
+  const startOfDay = `${todayStr} 00:00:00`;
+  const endOfDay = `${todayStr} 23:59:59`;
+  return { todayStr, startOfDay, endOfDay };
+}
 
 module.exports = Attendance;

@@ -456,7 +456,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Email Akun', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                            Text(_userData['email'] ?? '-', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                _userData['email'] ?? '-',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                              ),
+                            ),
                           ],
                         ),
                         const Divider(height: 20),
@@ -464,7 +472,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Server API Base', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                            Text(ApiConstants.baseUrl, style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                ApiConstants.baseUrl,
+                                style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                              ),
+                            ),
                           ],
                         ),
                         const Divider(height: 20),

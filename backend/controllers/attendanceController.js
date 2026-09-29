@@ -49,10 +49,11 @@ const attendanceController = {
 
       if (type === 'in' && todayStatus.hasClockedIn) {
         if (req.file) fs.unlinkSync(req.file.path);
-        const inTime = new Date(todayStatus.clockIn.created_at).toLocaleTimeString('id-ID', {
+        const inTime = (todayStatus.clockIn.time || new Date(todayStatus.clockIn.created_at).toLocaleTimeString('id-ID', {
           hour: '2-digit',
           minute: '2-digit',
-        });
+          timeZone: 'Asia/Jakarta',
+        })).replace('.', ':');
         return res.status(400).json({
           success: false,
           message: `Anda sudah melakukan Clock In hari ini pada pukul ${inTime}.`,
@@ -69,10 +70,11 @@ const attendanceController = {
         }
         if (todayStatus.hasClockedOut) {
           if (req.file) fs.unlinkSync(req.file.path);
-          const outTime = new Date(todayStatus.clockOut.created_at).toLocaleTimeString('id-ID', {
+          const outTime = (todayStatus.clockOut.time || new Date(todayStatus.clockOut.created_at).toLocaleTimeString('id-ID', {
             hour: '2-digit',
             minute: '2-digit',
-          });
+            timeZone: 'Asia/Jakarta',
+          })).replace('.', ':');
           return res.status(400).json({
             success: false,
             message: `Anda sudah melakukan Clock Out hari ini pada pukul ${outTime}.`,
@@ -81,12 +83,12 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 3. Validasi file foto
+      // 3. Validasi file foto (Wajib hanya untuk Clock In, Clock Out tanpa foto)
       // ──────────────────────────────────────────────
-      if (!req.file) {
+      if (type === 'in' && !req.file) {
         return res.status(400).json({
           success: false,
-          message: 'Foto wajah wajib diunggah.',
+          message: 'Foto identifikasi wajah wajib diunggah saat Clock In.',
         });
       }
 
@@ -96,8 +98,7 @@ const attendanceController = {
       const { latitude, longitude } = req.body;
 
       if (!latitude || !longitude) {
-        // Hapus file yang sudah diupload jika validasi gagal
-        fs.unlinkSync(req.file.path);
+        if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({
           success: false,
           message: 'Latitude dan longitude wajib disertakan.',
@@ -108,7 +109,7 @@ const attendanceController = {
       const lng = parseFloat(longitude);
 
       if (isNaN(lat) || isNaN(lng)) {
-        fs.unlinkSync(req.file.path);
+        if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({
           success: false,
           message: 'Latitude dan longitude harus berupa angka yang valid.',
@@ -116,7 +117,7 @@ const attendanceController = {
       }
 
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        fs.unlinkSync(req.file.path);
+        if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({
           success: false,
           message: 'Koordinat di luar rentang valid. Latitude: -90 s/d 90, Longitude: -180 s/d 180.',
@@ -124,12 +125,12 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 3. Ambil lokasi kantor/kampus dari database
+      // 5. Ambil lokasi kantor/kampus dari database
       // ──────────────────────────────────────────────
       const location = await Location.getActive();
 
       if (!location) {
-        fs.unlinkSync(req.file.path);
+        if (req.file) fs.unlinkSync(req.file.path);
         return res.status(404).json({
           success: false,
           message: 'Lokasi kantor/kampus belum dikonfigurasi. Hubungi admin.',
@@ -137,17 +138,17 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 4. Hitung jarak menggunakan Haversine
+      // 6. Hitung jarak menggunakan Haversine
       // ──────────────────────────────────────────────
       const distance = haversine(lat, lng, location.latitude, location.longitude);
       const radius = location.radius || parseInt(process.env.DEFAULT_RADIUS_METERS, 10) || 100;
 
       // ──────────────────────────────────────────────
-      // 5. Cek geofencing - Jika di luar radius
+      // 7. Cek geofencing - Jika di luar radius
       // ──────────────────────────────────────────────
       if (distance > radius) {
         // Simpan log dengan status "Di Luar Radius"
-        const photoRelativePath = `attendance/${req.file.filename}`;
+        const photoRelativePath = req.file ? `attendance/${req.file.filename}` : null;
 
         const attendanceLog = await Attendance.create({
           user_id: userId,
@@ -174,17 +175,17 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 6. Face Recognition (DINONAKTIFKAN SESUAI PERMINTAAN USER)
-      // Foto selfie real-time tetap disimpan sebagai bukti presensi,
-      // tetapi proses komparasi wajah dilewati (bypass) dan status langsung "Hadir".
+      // 8. Face Recognition
+      // Clock In: identifikasi wajah aktif (bypass skor 100).
+      // Clock Out: tidak membutuhkan foto/wajah, langsung simpan.
       // ──────────────────────────────────────────────
-      const faceConfidence = 100.0;
+      const faceConfidence = type === 'in' ? 100.0 : null;
       const faceStatus = type === 'in' ? 'Clock In' : 'Clock Out';
 
       // ──────────────────────────────────────────────
-      // 7 & 8. Simpan log absensi dengan status final
+      // 9. Simpan log absensi dengan status final
       // ──────────────────────────────────────────────
-      const photoRelativePath = `attendance/${req.file.filename}`;
+      const photoRelativePath = req.file ? `attendance/${req.file.filename}` : null;
 
       const attendanceLog = await Attendance.create({
         user_id: userId,
@@ -204,7 +205,11 @@ const attendanceController = {
       const statusCode = 200;
       const actionLabel = type === 'in' ? 'Clock In' : 'Clock Out';
       const now = new Date();
-      const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const timeStr = now.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      }).replace('.', ':');
 
       return res.status(statusCode).json({
         success: isSuccess,

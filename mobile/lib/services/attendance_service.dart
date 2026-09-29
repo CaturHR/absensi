@@ -49,7 +49,12 @@ class TodayAttendanceStatus {
     final clockIn = data['clockIn'] as Map<String, dynamic>?;
     final clockOut = data['clockOut'] as Map<String, dynamic>?;
 
-    String? formatTime(String? dateStr) {
+    String? formatTime(Map<String, dynamic>? record) {
+      if (record == null) return null;
+      if (record['time'] != null && record['time'].toString().isNotEmpty) {
+        return record['time'].toString();
+      }
+      final dateStr = record['created_at']?.toString();
       if (dateStr == null) return null;
       try {
         final dt = DateTime.parse(dateStr).toLocal();
@@ -64,8 +69,8 @@ class TodayAttendanceStatus {
     return TodayAttendanceStatus(
       hasClockedIn: data['hasClockedIn'] == true,
       hasClockedOut: data['hasClockedOut'] == true,
-      clockInTime: formatTime(clockIn?['created_at']),
-      clockOutTime: formatTime(clockOut?['created_at']),
+      clockInTime: formatTime(clockIn),
+      clockOutTime: formatTime(clockOut),
     );
   }
 }
@@ -175,7 +180,7 @@ class AttendanceService {
   /// Endpoint: POST /api/attendance
   /// Menggunakan XFile, fromBytes & MediaType('image', 'jpeg') agar kompatibel 100% dengan Web & Mobile.
   static Future<AttendanceResult> submitAttendance({
-    required XFile photoFile,
+    XFile? photoFile,
     required double latitude,
     required double longitude,
     String type = 'in',
@@ -194,15 +199,17 @@ class AttendanceService {
     request.fields['longitude'] = longitude.toString();
     request.fields['type'] = type;
 
-    // 3. Tambahkan File Foto Wajah dengan explicit MediaType
-    final bytes = await photoFile.readAsBytes();
-    final multipartFile = http.MultipartFile.fromBytes(
-      'photo',
-      bytes,
-      filename: photoFile.name.isNotEmpty ? photoFile.name : 'attendance_face.jpg',
-      contentType: MediaType('image', 'jpeg'),
-    );
-    request.files.add(multipartFile);
+    // 3. Tambahkan File Foto Wajah (wajib untuk Clock In, tanpa foto untuk Clock Out)
+    if (photoFile != null) {
+      final bytes = await photoFile.readAsBytes();
+      final multipartFile = http.MultipartFile.fromBytes(
+        'photo',
+        bytes,
+        filename: photoFile.name.isNotEmpty ? photoFile.name : 'attendance_face.jpg',
+        contentType: MediaType('image', 'jpeg'),
+      );
+      request.files.add(multipartFile);
+    }
 
     // 4. Kirim Request
     try {

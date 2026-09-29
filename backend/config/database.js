@@ -14,8 +14,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // Timezone UTC agar konsisten
-  timezone: '+00:00',
+  // Timezone Indonesia (WIB / UTC+7) agar waktu sinkron antara MySQL, backend, mobile & frontend
+  timezone: '+07:00',
 });
 
 /**

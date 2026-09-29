@@ -121,6 +121,7 @@ export default function ExportDataPage({ onBack, onLogout }) {
               day: '2-digit',
               month: 'long',
               year: 'numeric',
+              timeZone: 'Asia/Jakarta',
             })
           : item.created_at || '-';
 
@@ -129,6 +130,7 @@ export default function ExportDataPage({ onBack, onLogout }) {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
+              timeZone: 'Asia/Jakarta',
             })
           : '-';
 

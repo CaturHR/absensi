@@ -71,7 +71,23 @@ const LeaveRequest = {
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
       `SELECT lr.*, u.name as user_name, u.nip as user_nip, u.email as user_email,
-              r.name as reviewer_name
+              r.name as reviewer_name,
+              (
+                SELECT TIME_FORMAT(a.created_at, '%H:%i')
+                FROM attendance_logs a 
+                WHERE a.user_id = lr.user_id 
+                  AND DATE(a.created_at) = DATE(lr.created_at)
+                  AND a.status = 'Clock In'
+                ORDER BY a.created_at ASC LIMIT 1
+              ) as clock_in,
+              (
+                SELECT TIME_FORMAT(a.created_at, '%H:%i')
+                FROM attendance_logs a 
+                WHERE a.user_id = lr.user_id 
+                  AND DATE(a.created_at) = DATE(lr.created_at)
+                  AND a.status = 'Clock Out'
+                ORDER BY a.created_at DESC LIMIT 1
+              ) as clock_out
        FROM leave_requests lr
        LEFT JOIN users u ON lr.user_id = u.id
        LEFT JOIN users r ON lr.reviewed_by = r.id

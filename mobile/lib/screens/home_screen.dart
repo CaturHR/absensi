@@ -130,7 +130,7 @@ class HomeScreen extends StatelessWidget {
                       crossAxisCount: 2,
                       mainAxisSpacing: 16,
                       crossAxisSpacing: 16,
-                      childAspectRatio: 0.95,
+                      childAspectRatio: 0.82,
                       children: [
                         // ─── Menu Absen ───
                         _buildMenuCard(
@@ -189,7 +189,7 @@ class HomeScreen extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(22),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(22),
@@ -204,11 +204,12 @@ class HomeScreen extends StatelessWidget {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Icon Circle with Gradient
               Container(
-                width: 64,
-                height: 64,
+                width: 58,
+                height: 58,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -227,10 +228,10 @@ class HomeScreen extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: Colors.white,
-                  size: 32,
+                  size: 30,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Title
               Text(
@@ -241,6 +242,8 @@ class HomeScreen extends StatelessWidget {
                   color: Color(0xFF242721),
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
 
@@ -252,6 +255,8 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.black54,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -260,3 +265,4 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+

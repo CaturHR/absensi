@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { fetchLeaveRequests, approveLeave, rejectLeave } from '../../services/api';
+import { getImageUrl } from '../../utils/image';
 
 export default function DataIzinPage({ onBack, onLogout }) {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [selectedFileModal, setSelectedFileModal] = useState(null);
+  const [imageError, setImageError] = useState(false);
 
   const loadLeaves = async () => {
     setLoading(true);
@@ -34,7 +36,6 @@ export default function DataIzinPage({ onBack, onLogout }) {
   };
 
   const handleApprovalChange = async (leaveId, newStatus) => {
-    const prevLeaves = [...leaves];
     const targetLeave = leaves.find((l) => l.id === leaveId);
     const employeeName = targetLeave ? (targetLeave.user_name || targetLeave.name || 'Karyawan') : 'Karyawan';
 
@@ -42,6 +43,10 @@ export default function DataIzinPage({ onBack, onLogout }) {
     setLeaves((prev) =>
       prev.map((l) => (l.id === leaveId ? { ...l, status: newStatus } : l))
     );
+
+    if (selectedFileModal && selectedFileModal.id === leaveId) {
+      setSelectedFileModal((prev) => (prev ? { ...prev, status: newStatus } : prev));
+    }
 
     if (newStatus === 'approved') {
       try {
@@ -94,6 +99,22 @@ export default function DataIzinPage({ onBack, onLogout }) {
       color: '#475569',
       fontWeight: 500,
     };
+  };
+
+  // Helper untuk mengenali tipe attachment (gambar, pdf, atau dokumen lain)
+  const isImageFile = (path) => {
+    if (!path) return false;
+    return /\.(jpg|jpeg|png|webp|gif|bmp|svg)$/i.test(path) || path.startsWith('data:image/') || path.startsWith('blob:');
+  };
+
+  const isPdfFile = (path) => {
+    if (!path) return false;
+    return /\.pdf$/i.test(path);
+  };
+
+  const openModal = (item) => {
+    setImageError(false);
+    setSelectedFileModal(item);
   };
 
   return (
@@ -172,7 +193,7 @@ export default function DataIzinPage({ onBack, onLogout }) {
             </div>
             <div>
               <h2 style={styles.pageTitle}>Data Izin Karyawan</h2>
-              <p style={styles.pageSubtitle}>Daftar pengajuan izin yang perlu ditinjau</p>
+              <p style={styles.pageSubtitle}>Daftar pengajuan izin dan peninjauan berkas lampiran resmi</p>
             </div>
           </div>
         </div>
@@ -184,9 +205,9 @@ export default function DataIzinPage({ onBack, onLogout }) {
               <thead>
                 <tr style={styles.tableHead}>
                   <th style={{ ...styles.th, width: 60, textAlign: 'center' }}>NO</th>
-                  <th style={{ ...styles.th, minWidth: 160 }}>NAMA</th>
-                  <th style={{ ...styles.th, minWidth: 260 }}>ALASAN</th>
-                  <th style={{ ...styles.th, minWidth: 130, textAlign: 'center' }}>SURAT IZIN</th>
+                  <th style={{ ...styles.th, minWidth: 170 }}>NAMA</th>
+                  <th style={{ ...styles.th, minWidth: 240 }}>ALASAN & KETERANGAN</th>
+                  <th style={{ ...styles.th, minWidth: 150, textAlign: 'center' }}>SURAT / LAMPIRAN</th>
                   <th style={{ ...styles.th, minWidth: 150 }}>CLOCK IN / CLOCK OUT</th>
                   <th style={{ ...styles.th, minWidth: 150 }}>APPROVAL</th>
                 </tr>
@@ -214,6 +235,7 @@ export default function DataIzinPage({ onBack, onLogout }) {
                     const selectStyle = getSelectStyle(item.status);
                     const clockIn = item.clock_in;
                     const clockOut = item.clock_out;
+                    const hasAttachment = Boolean(item.attachment);
 
                     return (
                       <tr
@@ -229,36 +251,56 @@ export default function DataIzinPage({ onBack, onLogout }) {
 
                         {/* NAMA */}
                         <td style={{ ...styles.td, fontWeight: 700, color: '#1a1a2e', fontSize: 14 }}>
-                          {item.user_name || item.name || 'Nama Karyawan'}
+                          <div>{item.user_name || item.name || 'Nama Karyawan'}</div>
+                          <div style={{ fontSize: 11.5, color: '#64748b', fontWeight: 400 }}>
+                            {item.user_nip ? `NIP: ${item.user_nip}` : item.user_email || ''}
+                          </div>
                         </td>
 
                         {/* ALASAN */}
                         <td style={{ ...styles.td, color: '#334155', fontSize: 13.5 }}>
-                          {item.reason || '-'}
+                          <div style={{ fontWeight: 600, color: '#1e293b' }}>{item.reason || '-'}</div>
+                          {item.description && (
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, fontStyle: 'italic' }}>
+                              "{item.description}"
+                            </div>
+                          )}
                         </td>
 
-                        {/* SURAT IZIN */}
+                        {/* SURAT IZIN / ATTACHMENT */}
                         <td style={{ ...styles.td, textAlign: 'center' }}>
                           <button
-                            onClick={() => setSelectedFileModal(item)}
-                            style={styles.fileBtn}
-                            title="Klik untuk melihat lampiran surat"
+                            onClick={() => openModal(item)}
+                            style={{
+                              ...styles.fileBtn,
+                              background: hasAttachment ? '#eff6ff' : '#f8fafc',
+                              borderColor: hasAttachment ? '#bfdbfe' : '#e2e8f0',
+                              color: hasAttachment ? '#1d4ed8' : '#475569',
+                            }}
+                            title={hasAttachment ? 'Klik untuk melihat lampiran berkas' : 'Klik untuk melihat rincian surat izin'}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#dbeafe';
-                              e.currentTarget.style.borderColor = '#bfdbfe';
+                              e.currentTarget.style.background = hasAttachment ? '#dbeafe' : '#f1f5f9';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = '#eaf2fd';
-                              e.currentTarget.style.borderColor = 'transparent';
+                              e.currentTarget.style.background = hasAttachment ? '#eff6ff' : '#f8fafc';
                             }}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                            </svg>
-                            <span>lihat file</span>
+                            {hasAttachment ? (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                                </svg>
+                                <span style={{ fontWeight: 600 }}>Lihat Berkas</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                <span>Lihat Detail</span>
+                              </>
+                            )}
                           </button>
                         </td>
 
@@ -289,7 +331,6 @@ export default function DataIzinPage({ onBack, onLogout }) {
                               <option value="approved" style={styles.optionApproved}>Setujui</option>
                               <option value="rejected" style={styles.optionRejected}>Ditolak</option>
                             </select>
-                            {/* Dropdown chevron icon */}
                             <svg
                               style={styles.selectArrow}
                               width="12"
@@ -315,123 +356,211 @@ export default function DataIzinPage({ onBack, onLogout }) {
         </div>
       </main>
 
-      {/* Modal Preview Surat Izin */}
+      {/* Modal Preview Lampiran Surat Izin */}
       {selectedFileModal && (
         <div style={styles.modalOverlay} onClick={() => setSelectedFileModal(null)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
             <div style={styles.modalHeader}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={styles.modalHeaderIcon}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
                 </div>
                 <div>
-                  <h3 style={styles.modalTitle}>Lampiran Surat Izin</h3>
-                  <p style={styles.modalSubtitle}>{selectedFileModal.user_name || 'Karyawan'}</p>
+                  <h3 style={styles.modalTitle}>Pratinjau Dokumen Izin</h3>
+                  <p style={styles.modalSubtitle}>
+                    {selectedFileModal.user_name || 'Karyawan'} • NIP: {selectedFileModal.user_nip || '-'}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedFileModal(null)}
                 style={styles.modalCloseBtn}
+                title="Tutup"
               >
                 ✕
               </button>
             </div>
 
+            {/* Modal Body */}
             <div style={styles.modalBody}>
-              {/* Document Certificate Card Preview */}
-              <div style={styles.docCard}>
-                <div style={styles.docHeader}>
-                  <div style={styles.docBrand}>
-                    <div style={styles.docBrandIcon}>🏥</div>
-                    <div>
-                      <div style={styles.docHospitalName}>KLINIK & RUMAH SAKIT MITRA SEHAT</div>
-                      <div style={styles.docHospitalSub}>Surat Keterangan Dokter & Bukti Resmi Pengajuan</div>
-                    </div>
-                  </div>
-                  <div style={styles.docVerifiedBadge}>
-                    <span>VERIFIED</span>
+              {/* Status Header Bar */}
+              <div style={styles.statusHeaderBar}>
+                <div>
+                  <span style={styles.docLabel}>Alasan Pengajuan:</span>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: '#1e5a8a', marginTop: 2 }}>
+                    {selectedFileModal.reason}
                   </div>
                 </div>
-
-                <div style={styles.docDivider} />
-
-                <div style={styles.docDetailsGrid}>
-                  <div>
-                    <span style={styles.docLabel}>Nama Karyawan:</span>
-                    <p style={styles.docValue}>{selectedFileModal.user_name || '-'}</p>
-                  </div>
-                  <div>
-                    <span style={styles.docLabel}>NIP / ID:</span>
-                    <p style={styles.docValue}>{selectedFileModal.user_nip || 'EMP-2024-001'}</p>
-                  </div>
-                  <div>
-                    <span style={styles.docLabel}>Keperluan / Alasan:</span>
-                    <p style={{ ...styles.docValue, color: '#1e5a8a', fontWeight: 600 }}>{selectedFileModal.reason}</p>
-                  </div>
-                  <div>
-                    <span style={styles.docLabel}>Status Tinjauan:</span>
-                    <p style={styles.docValue}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 10px',
-                          borderRadius: 6,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          background:
-                            selectedFileModal.status === 'approved'
-                              ? '#eaf7ec'
-                              : selectedFileModal.status === 'rejected'
-                              ? '#fde8e8'
-                              : '#f1f5f9',
-                          color:
-                            selectedFileModal.status === 'approved'
-                              ? '#166534'
-                              : selectedFileModal.status === 'rejected'
-                              ? '#991b1b'
-                              : '#475569',
-                        }}
-                      >
-                        {selectedFileModal.status === 'approved'
-                          ? 'Disetujui'
+                <div>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 12px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background:
+                        selectedFileModal.status === 'approved'
+                          ? '#dcfce7'
                           : selectedFileModal.status === 'rejected'
-                          ? 'Ditolak'
-                          : 'Menunggu Persetujuan'}
-                      </span>
-                    </p>
-                  </div>
+                          ? '#fee2e2'
+                          : '#fef3c7',
+                      color:
+                        selectedFileModal.status === 'approved'
+                          ? '#15803d'
+                          : selectedFileModal.status === 'rejected'
+                          ? '#b91c1c'
+                          : '#b45309',
+                    }}
+                  >
+                    {selectedFileModal.status === 'approved'
+                      ? '✓ Disetujui'
+                      : selectedFileModal.status === 'rejected'
+                      ? '✕ Ditolak'
+                      : '⏳ Menunggu Persetujuan'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Keterangan Detail Box */}
+              {selectedFileModal.description && (
+                <div style={styles.descContainer}>
+                  <span style={styles.docLabel}>Keterangan Karyawan:</span>
+                  <p style={styles.descText}>{selectedFileModal.description}</p>
+                </div>
+              )}
+
+              {/* Lampiran Berkas Section */}
+              <div style={styles.attachmentSection}>
+                <div style={styles.attachmentSectionHeader}>
+                  <span style={styles.sectionHeaderTitle}>
+                    📎 Berkas Lampiran (Surat Dokter / Bukti)
+                  </span>
+                  {selectedFileModal.attachment && (
+                    <a
+                      href={getImageUrl(selectedFileModal.attachment)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.openExternalLink}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                      <span>Buka Tab Baru</span>
+                    </a>
+                  )}
                 </div>
 
-                <div style={{ marginTop: 14 }}>
-                  <span style={styles.docLabel}>Keterangan Tambahan:</span>
-                  <div style={styles.docDescBox}>
-                    {selectedFileModal.description ||
-                      'Yang bersangkutan mengajukan permohonan izin resmi sesuai dengan ketentuan ketenagakerjaan dan SOP perusahaan.'}
-                  </div>
-                </div>
-
-                {selectedFileModal.attachment && (
-                  <div style={styles.attachmentRow}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
-                      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                {selectedFileModal.attachment ? (
+                  isImageFile(selectedFileModal.attachment) ? (
+                    /* Pratinjau Gambar / Foto Bukti */
+                    <div style={styles.imageViewerContainer}>
+                      {!imageError ? (
+                        <img
+                          src={getImageUrl(selectedFileModal.attachment)}
+                          alt="Lampiran Surat Izin"
+                          style={styles.previewImage}
+                          onError={() => setImageError(true)}
+                        />
+                      ) : (
+                        <div style={styles.imageErrorBox}>
+                          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                          </svg>
+                          <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 13 }}>
+                            Gagal memuat gambar atau file tidak ditemukan di server.
+                          </p>
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>{selectedFileModal.attachment}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : isPdfFile(selectedFileModal.attachment) ? (
+                    /* Pratinjau PDF */
+                    <div style={styles.pdfViewerContainer}>
+                      <iframe
+                        src={getImageUrl(selectedFileModal.attachment)}
+                        title="Pratinjau PDF"
+                        style={styles.pdfIframe}
+                      />
+                    </div>
+                  ) : (
+                    /* Dokumen Lain */
+                    <div style={styles.genericFileBox}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>
+                          {selectedFileModal.attachment.split('/').pop()}
+                        </div>
+                        <a
+                          href={getImageUrl(selectedFileModal.attachment)}
+                          download
+                          style={styles.downloadFileBtn}
+                        >
+                          Unduh Dokumen
+                        </a>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  /* Tidak Ada Lampiran */
+                  <div style={styles.noAttachmentBox}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="9" y1="15" x2="15" y2="15" />
                     </svg>
-                    <span style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>
-                      {selectedFileModal.attachment}
+                    <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: 13 }}>
+                      Tidak ada file lampiran fisik yang diunggah oleh karyawan.
+                    </p>
+                    <span style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                      Permohonan diajukan dengan keterangan tertulis.
                     </span>
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Modal Footer dengan Quick Actions Approval */}
             <div style={styles.modalFooter}>
+              <div style={styles.quickApprovalGroup}>
+                <button
+                  onClick={() => handleApprovalChange(selectedFileModal.id, 'approved')}
+                  disabled={selectedFileModal.status === 'approved'}
+                  style={{
+                    ...styles.actionApproveBtn,
+                    opacity: selectedFileModal.status === 'approved' ? 0.6 : 1,
+                  }}
+                >
+                  ✓ Setujui Izin
+                </button>
+                <button
+                  onClick={() => handleApprovalChange(selectedFileModal.id, 'rejected')}
+                  disabled={selectedFileModal.status === 'rejected'}
+                  style={{
+                    ...styles.actionRejectBtn,
+                    opacity: selectedFileModal.status === 'rejected' ? 0.6 : 1,
+                  }}
+                >
+                  ✕ Tolak Izin
+                </button>
+              </div>
+
               <button
                 onClick={() => setSelectedFileModal(null)}
-                style={styles.modalPrimaryBtn}
+                style={styles.modalCloseMainBtn}
               >
-                Tutup Pratinjau
+                Tutup
               </button>
             </div>
           </div>
@@ -634,13 +763,10 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    padding: '5px 14px',
+    padding: '6px 14px',
     borderRadius: 20,
-    background: '#eaf2fd',
-    border: '1px solid transparent',
-    color: '#2563eb',
+    border: '1px solid',
     fontSize: 12,
-    fontWeight: 500,
     cursor: 'pointer',
     transition: 'all 0.18s ease',
   },
@@ -709,8 +835,8 @@ const styles = {
   modalOverlay: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(15, 23, 42, 0.45)',
-    backdropFilter: 'blur(3px)',
+    background: 'rgba(15, 23, 42, 0.55)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -720,10 +846,13 @@ const styles = {
   },
   modalContent: {
     background: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 18,
     width: '100%',
-    maxWidth: 540,
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+    maxWidth: 620,
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
     overflow: 'hidden',
     animation: 'fadeInUp 0.25s ease-out',
   },
@@ -733,10 +862,11 @@ const styles = {
     justifyContent: 'space-between',
     padding: '18px 24px',
     borderBottom: '1px solid #f1f5f9',
+    background: '#ffffff',
   },
   modalHeaderIcon: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     background: '#eaf0f7',
     display: 'flex',
@@ -744,7 +874,7 @@ const styles = {
     justifyContent: 'center',
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: 700,
     color: '#1a1a2e',
     margin: 0,
@@ -760,104 +890,176 @@ const styles = {
     fontSize: 16,
     color: '#94a3b8',
     cursor: 'pointer',
-    padding: 4,
+    padding: 6,
     borderRadius: 6,
+    transition: 'color 0.15s ease',
   },
   modalBody: {
-    padding: '24px',
+    padding: '20px 24px',
+    overflowY: 'auto',
+    flex: 1,
   },
-  docCard: {
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
-    borderRadius: 12,
-    padding: 20,
-  },
-  docHeader: {
+  statusHeaderBar: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  docBrand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-  },
-  docBrandIcon: {
-    fontSize: 22,
-  },
-  docHospitalName: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#1e293b',
-  },
-  docHospitalSub: {
-    fontSize: 11,
-    color: '#64748b',
-  },
-  docVerifiedBadge: {
-    padding: '3px 8px',
-    borderRadius: 6,
-    background: '#dcfce7',
-    color: '#166534',
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: '0.05em',
-  },
-  docDivider: {
-    height: 1,
-    background: '#e2e8f0',
-    margin: '14px 0',
-  },
-  docDetailsGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 12,
+    padding: '12px 16px',
+    background: '#f8fafc',
+    borderRadius: 12,
+    border: '1px solid #e2e8f0',
+    marginBottom: 14,
   },
   docLabel: {
     fontSize: 11,
     color: '#64748b',
-    fontWeight: 500,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
   },
-  docValue: {
-    fontSize: 13,
-    color: '#1e293b',
-    margin: '2px 0 0',
-    fontWeight: 500,
-  },
-  docDescBox: {
-    marginTop: 4,
-    padding: '10px 12px',
+  descContainer: {
     background: '#ffffff',
     border: '1px solid #e2e8f0',
-    borderRadius: 8,
-    fontSize: 12.5,
+    borderRadius: 10,
+    padding: '12px 14px',
+    marginBottom: 16,
+  },
+  descText: {
+    fontSize: 13,
     color: '#334155',
+    margin: '4px 0 0',
     lineHeight: 1.5,
   },
-  attachmentRow: {
+  attachmentSection: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: 12,
+    padding: '16px',
+  },
+  attachmentSectionHeader: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    padding: '8px 12px',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionHeaderTitle: {
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: '#334155',
+  },
+  openExternalLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 11.5,
+    color: '#2563eb',
+    fontWeight: 600,
+    textDecoration: 'none',
     background: '#eff6ff',
-    borderRadius: 8,
-    border: '1px dashed #bfdbfe',
+    padding: '4px 8px',
+    borderRadius: 6,
+  },
+  imageViewerContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#0f172a',
+    borderRadius: 10,
+    overflow: 'hidden',
+    minHeight: 220,
+    maxHeight: 380,
+  },
+  previewImage: {
+    maxWidth: '100%',
+    maxHeight: 380,
+    objectFit: 'contain',
+    display: 'block',
+  },
+  imageErrorBox: {
+    padding: '30px 20px',
+    textAlign: 'center',
+    background: '#f1f5f9',
+    width: '100%',
+  },
+  pdfViewerContainer: {
+    width: '100%',
+    height: 380,
+    borderRadius: 10,
+    overflow: 'hidden',
+    border: '1px solid #cbd5e1',
+  },
+  pdfIframe: {
+    width: '100%',
+    height: '100%',
+    border: 'none',
+  },
+  genericFileBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    padding: '14px',
+    background: '#ffffff',
+    borderRadius: 10,
+    border: '1px solid #cbd5e1',
+  },
+  downloadFileBtn: {
+    display: 'inline-block',
+    marginTop: 4,
+    fontSize: 12,
+    color: '#2563eb',
+    fontWeight: 600,
+    textDecoration: 'underline',
+  },
+  noAttachmentBox: {
+    padding: '24px 16px',
+    textAlign: 'center',
+    background: '#ffffff',
+    borderRadius: 10,
+    border: '1px dashed #cbd5e1',
   },
   modalFooter: {
     padding: '14px 24px',
     borderTop: '1px solid #f1f5f9',
     display: 'flex',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     background: '#f8fafc',
+    gap: 12,
+    flexWrap: 'wrap',
   },
-  modalPrimaryBtn: {
-    padding: '8px 18px',
-    background: '#1e5a8a',
+  quickApprovalGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionApproveBtn: {
+    padding: '7px 14px',
+    background: '#16a34a',
     color: '#ffffff',
     border: 'none',
     borderRadius: 8,
-    fontSize: 13,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  actionRejectBtn: {
+    padding: '7px 14px',
+    background: '#dc2626',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  modalCloseMainBtn: {
+    padding: '7px 16px',
+    background: '#e2e8f0',
+    color: '#334155',
+    border: 'none',
+    borderRadius: 8,
+    fontSize: 12.5,
     fontWeight: 600,
     cursor: 'pointer',
   },

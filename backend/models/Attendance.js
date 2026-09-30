@@ -39,6 +39,19 @@ const Attendance = {
   },
 
   /**
+   * Buat log presensi izin ketika permohonan disetujui
+   */
+  createLeaveLog: async ({ user_id, reason = 'Izin' }) => {
+    const [result] = await pool.execute(
+      `INSERT INTO attendance_logs 
+        (user_id, latitude, longitude, distance, face_confidence, status, photo, location_id) 
+       VALUES (?, 0, 0, 0, 100, 'Izin', NULL, NULL)`,
+      [user_id]
+    );
+    return { id: result.insertId, user_id, status: 'Izin' };
+  },
+
+  /**
    * Ambil semua log absensi (untuk admin).
    * Join dengan tabel users dan locations untuk info lengkap.
    * @param {object} filters - { page, limit, user_id, status, date_from, date_to }

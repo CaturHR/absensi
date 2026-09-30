@@ -49,7 +49,7 @@ const authController = {
       // Handle foto master wajah jika diunggah saat registrasi
       let facePhotoRelative = null;
       if (req.file) {
-        facePhotoRelative = `faces/${req.file.filename}`;
+        facePhotoRelative = `uploads/faces/${req.file.filename}`;
       }
 
       // Buat user
@@ -230,7 +230,7 @@ const authController = {
         }
       }
 
-      const facePhotoRelative = `faces/${req.file.filename}`;
+      const facePhotoRelative = `uploads/faces/${req.file.filename}`;
       await User.update(id, { face_photo: facePhotoRelative });
 
       return res.status(200).json({

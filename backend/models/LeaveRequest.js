@@ -53,13 +53,21 @@ const LeaveRequest = {
    * @param {object} filters - { page, limit, status }
    * @returns {Promise<{ data: Array, total: number, page: number, totalPages: number }>}
    */
-  findAll: async ({ page = 1, limit = 20, status } = {}) => {
+  findAll: async ({ page = 1, limit = 20, status, date_from, date_to } = {}) => {
     let whereClause = 'WHERE 1=1';
     const params = [];
 
     if (status && status !== 'all') {
       whereClause += ' AND lr.status = ?';
       params.push(status);
+    }
+    if (date_from) {
+      whereClause += ' AND DATE(lr.created_at) >= ?';
+      params.push(date_from);
+    }
+    if (date_to) {
+      whereClause += ' AND DATE(lr.created_at) <= ?';
+      params.push(date_to);
     }
 
     const [countResult] = await pool.execute(

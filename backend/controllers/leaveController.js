@@ -58,8 +58,9 @@ const leaveController = {
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const status = req.query.status || 'all';
+      const { date_from, date_to } = req.query;
 
-      const result = await LeaveRequest.findAll({ page, limit, status });
+      const result = await LeaveRequest.findAll({ page, limit, status, date_from, date_to });
 
       return res.status(200).json({
         success: true,

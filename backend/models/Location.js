@@ -13,7 +13,13 @@ const Location = {
     const [rows] = await pool.execute(
       'SELECT * FROM locations WHERE is_active = 1 LIMIT 1'
     );
-    return rows[0] || null;
+    if (rows[0]) return rows[0];
+
+    // Fallback jika tidak ada yang is_active = 1, ambil lokasi pertama
+    const [fallbackRows] = await pool.execute(
+      'SELECT * FROM locations ORDER BY id ASC LIMIT 1'
+    );
+    return fallbackRows[0] || null;
   },
 
   /**

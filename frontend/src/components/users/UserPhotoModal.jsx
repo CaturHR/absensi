@@ -34,7 +34,8 @@ export default function UserPhotoModal({ isOpen, user, onClose, onPhotoUpdated }
   // Reset state when modal is opened/closed or user changes
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(user?.face_photo ? 'view' : 'camera');
+      // Selalu mulai dari 'view' agar user bisa pilih antara Kamera atau Upload
+      setActiveTab('view');
       setPreviewUrl(null);
       setSelectedFile(null);
       setErrorMsg('');

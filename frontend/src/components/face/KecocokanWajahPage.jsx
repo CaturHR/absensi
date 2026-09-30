@@ -4,9 +4,21 @@ import { getImageUrl } from '../../utils/imageUrl';
 
 export default function KecocokanWajahPage({ onBack, onLogout }) {
   const [faceLogs, setFaceLogs] = useState([]);
+  const [filterTab, setFilterTab] = useState('failed'); // 'failed' | 'all'
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [selectedPhotoModal, setSelectedPhotoModal] = useState(null);
+
+  const isVerificationFailed = (status) => {
+    if (!status) return true;
+    const s = status.toLowerCase();
+    // Status absensi sukses / normal tidak perlu verifikasi manual
+    if (s === 'clock in' || s === 'clock out' || s === 'hadir' || s === 'izin') {
+      return false;
+    }
+    // Status gagal, ditolak, mismatch, di luar radius, atau pending butuh verifikasi
+    return true;
+  };
 
   const loadFaceLogs = async () => {
     setLoading(true);
@@ -98,6 +110,11 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
     };
   };
 
+  const failedCount = faceLogs.filter((item) => isVerificationFailed(item.status)).length;
+  const displayedLogs = filterTab === 'failed'
+    ? faceLogs.filter((item) => isVerificationFailed(item.status))
+    : faceLogs;
+
   return (
     <div style={styles.wrapper}>
       {/* Top Header Bar */}
@@ -179,8 +196,59 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
             </div>
             <div>
               <h2 style={styles.pageTitle}>Kecocokan Wajah</h2>
-              <p style={styles.pageSubtitle}>Hasil verifikasi wajah karyawan saat absen</p>
+              <p style={styles.pageSubtitle}>Daftar absensi yang gagal verifikasi wajah atau memerlukan review manual admin</p>
             </div>
+          </div>
+
+          {/* Filter Tabs */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => setFilterTab('failed')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: filterTab === 'failed' ? '1.5px solid #1e5a8a' : '1px solid #cbd5e1',
+                background: filterTab === 'failed' ? '#eff6ff' : '#ffffff',
+                color: filterTab === 'failed' ? '#1e5a8a' : '#64748b',
+                fontWeight: filterTab === 'failed' ? 700 : 500,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s',
+              }}
+            >
+              <span>Perlu Review / Gagal</span>
+              {failedCount > 0 && (
+                <span style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  borderRadius: 12,
+                  padding: '2px 7px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}>
+                  {failedCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setFilterTab('all')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: filterTab === 'all' ? '1.5px solid #1e5a8a' : '1px solid #cbd5e1',
+                background: filterTab === 'all' ? '#eff6ff' : '#ffffff',
+                color: filterTab === 'all' ? '#1e5a8a' : '#64748b',
+                fontWeight: filterTab === 'all' ? 700 : 500,
+                fontSize: 13,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              Semua Riwayat Log ({faceLogs.length})
+            </button>
           </div>
         </div>
 
@@ -205,7 +273,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                       <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>Memuat data verifikasi wajah...</span>
                     </td>
                   </tr>
-                ) : faceLogs.length === 0 ? (
+                ) : displayedLogs.length === 0 ? (
                   <tr>
                     <td colSpan="5" style={styles.emptyCell}>
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -214,11 +282,15 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                         <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
                         <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
                       </svg>
-                      <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>Belum ada log verifikasi wajah</span>
+                      <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>
+                        {filterTab === 'failed'
+                          ? 'Tidak ada absensi yang gagal verifikasi wajah / perlu review.'
+                          : 'Belum ada log verifikasi wajah'}
+                      </span>
                     </td>
                   </tr>
                 ) : (
-                  faceLogs.map((item, index) => {
+                  displayedLogs.map((item, index) => {
                     const selectStyle = getSelectStyle(item.status);
 
                     return (

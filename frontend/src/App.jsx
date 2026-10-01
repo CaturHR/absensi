@@ -6,6 +6,7 @@ import DataIzinPage from './components/leaves/DataIzinPage';
 import TambahLokasiPage from './components/settings/TambahLokasiPage';
 import ExportDataPage from './components/export/ExportDataPage';
 import KecocokanWajahPage from './components/face/KecocokanWajahPage';
+import { initRealtimeNotification, disconnectRealtimeNotification } from './services/pushNotification';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(null);
@@ -77,6 +78,18 @@ export default function App() {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
+  // Inisialisasi notifikasi real-time setelah admin login
+  useEffect(() => {
+    if (isLoggedIn && adminUser) {
+      initRealtimeNotification().then((result) => {
+        console.log('Realtime notification status:', result.status, result.message);
+      });
+    }
+    return () => {
+      disconnectRealtimeNotification();
+    };
+  }, [isLoggedIn, adminUser]);
+
   const handleLoginSuccess = (user) => {
     setAdminUser(user);
     setIsLoggedIn(true);
@@ -84,6 +97,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    disconnectRealtimeNotification();
     localStorage.removeItem('token');
     localStorage.removeItem('admin_user');
     setIsLoggedIn(false);

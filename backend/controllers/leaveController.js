@@ -1,5 +1,7 @@
 const LeaveRequest = require('../models/LeaveRequest');
 const Attendance = require('../models/Attendance');
+const User = require('../models/User');
+const { broadcastToAdmins } = require('../utils/sseManager');
 const path = require('path');
 const fs = require('fs');
 
@@ -34,6 +36,25 @@ const leaveController = {
         description: description ? description.trim() : null,
         attachment: attachmentPath,
       });
+
+      // Kirim notifikasi ke semua admin/super user via SSE real-time
+      try {
+        const user = await User.findById(userId);
+        const userName = user ? user.name : 'Karyawan';
+        const notifData = {
+          title: '📋 Permohonan Izin Baru',
+          body: `${userName} mengajukan izin: ${reason.trim()}`,
+          userName,
+          reason: reason.trim(),
+          leaveId: leave.id || null,
+          timestamp: new Date().toISOString(),
+        };
+
+        broadcastToAdmins('leave-request', notifData);
+      } catch (notifError) {
+        // Jangan gagalkan response jika notifikasi gagal terkirim
+        console.error('Notification error (non-fatal):', notifError.message);
+      }
 
       return res.status(201).json({
         success: true,

@@ -16,6 +16,7 @@ const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Import Models (for auto table creation)
 const LeaveRequest = require('./models/LeaveRequest');
@@ -122,6 +123,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/leaves', leaveRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ──────────────────────────────────────────────
 // Health Check

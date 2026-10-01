@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import '../widgets/liquid_glass.dart';
 
 /// Halaman Beranda - Menu utama dengan pilihan Absen dan Izin
 class HomeScreen extends StatelessWidget {
@@ -11,16 +12,10 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F2),
-      appBar: AppBar(
-        title: const Text(
-          'Beranda',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white.withValues(alpha: 0.88),
-        foregroundColor: const Color(0xFF242721),
-        elevation: 0,
-        centerTitle: true,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: const LiquidGlassAppBar(
+        title: 'Beranda',
         automaticallyImplyLeading: false,
       ),
       body: Stack(
@@ -131,6 +126,7 @@ class HomeScreen extends StatelessWidget {
                       mainAxisSpacing: 16,
                       crossAxisSpacing: 16,
                       childAspectRatio: 0.82,
+                      padding: const EdgeInsets.only(bottom: 90),
                       children: [
                         // ─── Menu Absen ───
                         _buildMenuCard(

@@ -7,6 +7,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import '../config/api_constants.dart';
+import '../widgets/liquid_glass.dart';
 
 /// Halaman Pengajuan Izin - Upload file, foto kamera, alasan, keterangan, submit
 class LeaveScreen extends StatefulWidget {
@@ -233,14 +234,10 @@ class _LeaveScreenState extends State<LeaveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F2),
-      appBar: AppBar(
-        title: const Text('Pengajuan Izin',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white.withValues(alpha: 0.88),
-        foregroundColor: const Color(0xFF242721),
-        elevation: 0,
-        centerTitle: true,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: const LiquidGlassAppBar(
+        title: 'Pengajuan Izin',
         automaticallyImplyLeading: false,
       ),
       body: Stack(
@@ -268,9 +265,10 @@ class _LeaveScreenState extends State<LeaveScreen> {
           ),
 
           // Form Content
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ─── Upload / Kamera Section ───
@@ -597,6 +595,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                 const SizedBox(height: 24),
               ],
             ),
+          ),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import '../services/attendance_service.dart';
 import '../services/location_service.dart';
+import '../widgets/liquid_glass.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -570,12 +571,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Presensi Wajah & GPS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        title: 'Presensi Wajah & GPS',
+        isDark: true,
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, size: 20),
@@ -773,7 +773,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
           // 3. Top Info Pill: Status Lokasi GPS & Geofencing Office Proximity
           Positioned(
-            top: 16,
+            top: MediaQuery.of(context).padding.top + kToolbarHeight + 8,
             left: 16,
             right: 16,
             child: Container(
@@ -845,7 +845,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
           // 4. Bottom Action & Instruction Guide
           Positioned(
-            bottom: 20,
+            bottom: 86,
             left: 16,
             right: 16,
             child: Column(

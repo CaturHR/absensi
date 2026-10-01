@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../config/api_constants.dart';
@@ -131,10 +132,29 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.dns_outlined, color: Colors.white),
-            tooltip: 'Pengaturan Server URL',
-            onPressed: _showServerSettings,
+          Padding(
+            padding: const EdgeInsets.only(right: 16, top: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.dns_outlined, color: Colors.white, size: 20),
+                    tooltip: 'Pengaturan Server URL',
+                    onPressed: _showServerSettings,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -229,10 +249,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // App Title & Subtitle
                         const Text(
-                          'Presensi Mobile',
+                          'AbsenKita',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 26,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF242721),
                             letterSpacing: -0.5,
@@ -240,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Biometrik Wajah & Geofencing GPS',
+                          'Presensi Karyawan POCA EJBN',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,

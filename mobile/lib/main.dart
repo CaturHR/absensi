@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'config/api_constants.dart';
 import 'services/auth_service.dart';
+import 'widgets/liquid_glass.dart';
 import 'screens/login_screen.dart';
 import 'screens/attendance_screen.dart';
 import 'screens/history_screen.dart';
@@ -45,7 +46,7 @@ class AbsensiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Presensi Biometrik Wajah',
+      title: 'AbsenKita',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -96,44 +97,42 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: LiquidGlassNavBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
-        backgroundColor: Colors.white,
-        elevation: 2,
-        indicatorColor: const Color(0xFF365C4A).withValues(alpha: 0.15),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: Color(0xFF365C4A)),
+          LiquidNavItem(
+            icon: Icons.home_outlined,
+            selectedIcon: Icons.home_rounded,
             label: 'Beranda',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.camera_alt_outlined),
-            selectedIcon: Icon(Icons.camera_alt, color: Color(0xFF365C4A)),
+          LiquidNavItem(
+            icon: Icons.camera_alt_outlined,
+            selectedIcon: Icons.camera_alt_rounded,
             label: 'Presensi',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.description_outlined),
-            selectedIcon: Icon(Icons.description_rounded, color: Color(0xFF6366F1)),
+          LiquidNavItem(
+            icon: Icons.description_outlined,
+            selectedIcon: Icons.description_rounded,
             label: 'Izin',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history, color: Color(0xFF365C4A)),
+          LiquidNavItem(
+            icon: Icons.history_outlined,
+            selectedIcon: Icons.history_rounded,
             label: 'Riwayat',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person, color: Color(0xFF365C4A)),
+          LiquidNavItem(
+            icon: Icons.person_outline,
+            selectedIcon: Icons.person_rounded,
             label: 'Profil',
           ),
         ],

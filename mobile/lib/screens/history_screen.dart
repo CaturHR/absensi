@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/attendance_service.dart';
+import '../widgets/liquid_glass.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -90,12 +91,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F2),
-      appBar: AppBar(
-        title: const Text('Riwayat Presensi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white.withValues(alpha: 0.88),
-        foregroundColor: const Color(0xFF242721),
-        elevation: 0,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        title: 'Riwayat Presensi',
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -125,51 +125,52 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ),
           ),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
-          : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.cloud_off, size: 48, color: Colors.black38),
-                        const SizedBox(height: 12),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 13, color: Colors.black54),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _fetchHistory,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF365C4A),
-                            foregroundColor: Colors.white,
+          SafeArea(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cloud_off, size: 48, color: Colors.black38),
+                              const SizedBox(height: 12),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 13, color: Colors.black54),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: _fetchHistory,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF365C4A),
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Coba Lagi'),
+                              ),
+                            ],
                           ),
-                          child: const Text('Coba Lagi'),
                         ),
-                      ],
-                    ),
-                  ),
-                )
-              : _historyList.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.event_busy_outlined, size: 48, color: Colors.black26),
-                          SizedBox(height: 12),
-                          Text('Belum ada catatan riwayat absensi.', style: TextStyle(color: Colors.black45)),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _fetchHistory,
-                      color: const Color(0xFF365C4A),
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
+                      )
+                    : _historyList.isEmpty
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.event_busy_outlined, size: 48, color: Colors.black26),
+                                SizedBox(height: 12),
+                                Text('Belum ada catatan riwayat absensi.', style: TextStyle(color: Colors.black45)),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _fetchHistory,
+                            color: const Color(0xFF365C4A),
+                            child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
                         itemCount: _historyList.length,
                         separatorBuilder: (context, index) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
@@ -259,6 +260,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         },
                       ),
                     ),
+          ),
         ],
       ),
     );

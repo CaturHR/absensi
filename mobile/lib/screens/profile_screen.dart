@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../config/api_constants.dart';
 import '../services/auth_service.dart';
+import '../widgets/liquid_glass.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -255,12 +256,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final hasMasterFace = (_userData['face_photo'] ?? '').isNotEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F2),
-      appBar: AppBar(
-        title: const Text('Profil Saya', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white.withValues(alpha: 0.88),
-        foregroundColor: const Color(0xFF242721),
-        elevation: 0,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: LiquidGlassAppBar(
+        title: 'Profil Saya',
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -295,13 +295,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
-              : RefreshIndicator(
-              onRefresh: _loadUserData,
-              color: const Color(0xFF365C4A),
-              child: ListView(
-                padding: const EdgeInsets.all(20),
+          SafeArea(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
+                : RefreshIndicator(
+                    onRefresh: _loadUserData,
+                    color: const Color(0xFF365C4A),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                 children: [
                   // User Avatar & Name Card
                   Container(
@@ -504,6 +505,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
             ),
+          ),
         ],
       ),
     );

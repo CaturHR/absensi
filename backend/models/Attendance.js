@@ -293,8 +293,8 @@ const Attendance = {
    */
   updateStatus: async (id, { status, notes }) => {
     const [result] = await pool.execute(
-      'UPDATE attendance_logs SET status = ? WHERE id = ?',
-      [status, id]
+      'UPDATE attendance_logs SET status = ?, notes = ? WHERE id = ?',
+      [status, notes || null, id]
     );
     return result.affectedRows > 0;
   },

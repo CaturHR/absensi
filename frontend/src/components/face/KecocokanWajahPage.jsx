@@ -52,32 +52,45 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
 
     // Normalize status
     const dbStatus =
-      newStatus === 'match' || newStatus === 'Hadir'
-        ? 'Hadir'
+      newStatus === 'match' || newStatus === 'Hadir' || newStatus === 'Clock In'
+        ? 'Clock In'
         : newStatus === 'mismatch' || newStatus === 'Wajah Tidak Cocok'
         ? 'Wajah Tidak Cocok'
         : newStatus;
 
+    // Simpan state sebelumnya untuk rollback jika API gagal
+    const prevLogs = [...faceLogs];
+
+    // Update state lokal secara optimistic agar UI responsif
     setFaceLogs((prev) =>
       prev.map((item) => (item.id === id ? { ...item, status: dbStatus } : item))
     );
 
     try {
       await updateAttendanceStatus(id, dbStatus, `Manual approval oleh admin (${dbStatus})`);
-    } catch (err) {
-      console.error('Error updating status:', err);
-    }
 
-    if (dbStatus === 'Hadir') {
-      showNotif('success', `Absensi ${name} telah disetujui manual (Status: Hadir).`);
-    } else if (dbStatus === 'Wajah Tidak Cocok') {
-      showNotif('error', `Absensi ${name} ditolak (Status: Wajah Tidak Cocok).`);
-    } else {
-      showNotif('info', `Status absensi ${name} diatur ke: ${dbStatus}.`);
+      // Reload data dari server untuk memastikan konsistensi saat kembali ke halaman
+      const res = await fetchAttendanceLogs({ limit: 100 });
+      if (res && res.data) {
+        setFaceLogs(res.data);
+      }
+
+      if (dbStatus === 'Clock In') {
+        showNotif('success', `Absensi ${name} telah disetujui manual (Status: Clock In).`);
+      } else if (dbStatus === 'Wajah Tidak Cocok') {
+        showNotif('error', `Absensi ${name} ditolak (Status: Wajah Tidak Cocok).`);
+      } else {
+        showNotif('info', `Status absensi ${name} diatur ke: ${dbStatus}.`);
+      }
+    } catch (err) {
+      // Rollback state lokal jika API gagal
+      setFaceLogs(prevLogs);
+      console.error('Error updating status:', err);
+      showNotif('error', `Gagal menyimpan perubahan status ${name}: ${err.message}`);
     }
   };
 
-  const isApproved = (status) => status === 'Hadir' || status === 'match';
+  const isApproved = (status) => status === 'Hadir' || status === 'match' || status === 'Clock In';
   const isRejected = (status) =>
     status === 'Wajah Tidak Cocok' ||
     status === 'mismatch' ||
@@ -345,7 +358,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                             <select
                               value={
                                 isApproved(item.status)
-                                  ? 'Hadir'
+                                  ? 'Clock In'
                                   : isRejected(item.status)
                                   ? 'Wajah Tidak Cocok'
                                   : 'pending'
@@ -357,7 +370,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                               }}
                             >
                               <option value="pending" style={styles.optionPending}>Menunggu Review</option>
-                              <option value="Hadir" style={styles.optionMatch}>✓ Disetujui (Hadir)</option>
+                              <option value="Clock In" style={styles.optionMatch}>✓ Disetujui (Clock In)</option>
                               <option value="Wajah Tidak Cocok" style={styles.optionMismatch}>✕ Ditolak (Wajah Tidak Cocok)</option>
                             </select>
                             {/* Chevron icon */}
@@ -548,12 +561,12 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
                   onClick={() => {
-                    handleApprovalChange(selectedPhotoModal.id, 'Hadir');
+                    handleApprovalChange(selectedPhotoModal.id, 'Clock In');
                     setSelectedPhotoModal(null);
                   }}
                   style={styles.modalBtnMatch}
                 >
-                  ✓ Setujui Manual (Jadikan Hadir)
+                  ✓ Setujui Manual (Jadikan Clock In)
                 </button>
                 <button
                   onClick={() => {

@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../config/api_constants.dart';
 
 /// Halaman Pengajuan Izin - Upload file, foto kamera, alasan, keterangan, submit
@@ -32,111 +33,32 @@ class _LeaveScreenState extends State<LeaveScreen> {
     super.dispose();
   }
 
-  /// Ambil foto menggunakan kamera
+  final ImagePicker _picker = ImagePicker();
+
+  /// Ambil foto menggunakan kamera native
   Future<void> _captureFromCamera() async {
-    if (widget.cameras.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tidak ada kamera terdeteksi pada perangkat.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    final frontCamera = widget.cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => widget.cameras.first,
-    );
-
-    final controller = CameraController(
-      frontCamera,
-      ResolutionPreset.medium,
-      enableAudio: false,
-    );
-
     try {
-      await controller.initialize();
+      final XFile? capturedFile = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+
+      if (capturedFile != null && mounted) {
+        setState(() {
+          _attachmentFile = capturedFile;
+          _attachmentName = 'Foto Kamera (${capturedFile.name})';
+          _isCapturedFromCamera = true;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengakses kamera: $e'),
+            content: Text('Gagal mengambil foto: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
-      return;
-    }
-
-    if (!mounted) return;
-
-    final XFile? capturedFile = await showDialog<XFile>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Ambil Foto Lampiran',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: SizedBox(
-                  width: 280,
-                  height: 280,
-                  child: CameraPreview(controller),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Arahkan kamera ke dokumen atau objek yang ingin dilampirkan.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                controller.dispose();
-                Navigator.pop(ctx, null);
-              },
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF365C4A),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                try {
-                  final photo = await controller.takePicture();
-                  controller.dispose();
-                  if (ctx.mounted) Navigator.pop(ctx, photo);
-                } catch (err) {
-                  controller.dispose();
-                  if (ctx.mounted) Navigator.pop(ctx, null);
-                }
-              },
-              child: const Text('Ambil Foto'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (capturedFile != null && mounted) {
-      setState(() {
-        _attachmentFile = capturedFile;
-        _attachmentName = 'Foto Kamera (${capturedFile.name})';
-        _isCapturedFromCamera = true;
-      });
     }
   }
 

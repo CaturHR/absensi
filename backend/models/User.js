@@ -11,7 +11,7 @@ const User = {
    */
   findById: async (id) => {
     const [rows] = await pool.execute(
-      'SELECT id, name, email, nip, role, face_photo, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, name, email, nip, role, divisi, face_photo, created_at, updated_at FROM users WHERE id = ?',
       [id]
     );
     return rows[0] || null;
@@ -60,7 +60,7 @@ const User = {
    */
   findAll: async () => {
     const [rows] = await pool.execute(
-      'SELECT id, name, email, nip, role, face_photo, created_at, updated_at FROM users ORDER BY created_at DESC'
+      'SELECT id, name, email, nip, role, divisi, face_photo, created_at, updated_at FROM users ORDER BY created_at DESC'
     );
     return rows;
   },
@@ -70,12 +70,12 @@ const User = {
    * @param {object} userData - { name, email, nip, password, role, face_photo }
    * @returns {Promise<object>}
    */
-  create: async ({ name, email, nip, password, role = 'user', face_photo = null }) => {
+  create: async ({ name, email, nip, password, role = 'user', divisi = null, face_photo = null }) => {
     const [result] = await pool.execute(
-      'INSERT INTO users (name, email, nip, password, role, face_photo) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, email, nip, password, role, face_photo]
+      'INSERT INTO users (name, email, nip, password, role, divisi, face_photo) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, email, nip, password, role, divisi, face_photo]
     );
-    return { id: result.insertId, name, email, nip, role, face_photo };
+    return { id: result.insertId, name, email, nip, role, divisi, face_photo };
   },
 
   /**

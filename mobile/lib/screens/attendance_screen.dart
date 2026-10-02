@@ -570,11 +570,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     final bool canClockOut = hasClockedIn && !hasClockedOut && !_isLoading;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: LiquidGlassAppBar(
         title: 'Presensi Wajah & GPS',
-        isDark: true,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
@@ -593,162 +592,190 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background placeholder dari lib/asset/baground/BG.png saat kamera belum aktif atau sudah Clock In
-          if (!_isCameraInitialized || hasClockedIn) ...[
+          // ─── 1. BACKGROUND LAYER ───
+          // Sebelum Clock In dengan kamera aktif: FULL KAMERA (tanpa background image BG.png)
+          // Setelah Clock In atau jika kamera error/loading: Pakai wallpaper BG.png
+          if (!hasClockedIn && _isCameraInitialized && _cameraController != null && _cameraController!.value.isInitialized) ...[
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _cameraController!.value.previewSize!.height,
+                  height: _cameraController!.value.previewSize!.width,
+                  child: CameraPreview(_cameraController!),
+                ),
+              ),
+            ),
+          ] else ...[
             Image.asset(
               'lib/asset/baground/BG.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox(),
+              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF365C4A)),
             ),
             Container(
-              color: Colors.black.withValues(alpha: 0.70),
-            ),
-          ],
-
-          // 1. Viewfinder Kamera Depan Real-Time (hanya saat BELUM Clock In)
-          if (!hasClockedIn && _isCameraInitialized && _cameraController != null)
-            Center(
-              child: AspectRatio(
-                aspectRatio: 1 / _cameraController!.value.aspectRatio,
-                child: CameraPreview(_cameraController!),
-              ),
-            )
-          else if (hasClockedIn)
-            // Tampilan Status setelah Clock In: Kamera Dimatikan
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 28),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.90),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: hasClockedOut
-                        ? const Color(0xFF10B981).withValues(alpha: 0.45)
-                        : const Color(0xFF38BDF8).withValues(alpha: 0.45),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.20),
+                    Colors.black.withValues(alpha: 0.08),
+                    Colors.black.withValues(alpha: 0.30),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: (hasClockedOut ? const Color(0xFF10B981) : const Color(0xFF0284C7)).withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
+              ),
+            ),
+          ],
+          // ─── 2. CONTENT LAYER SETELAH CLOCK IN / ERROR / LOADING ───
+          if (hasClockedIn)
+            // Tampilan Status setelah Clock In: Kamera Dimatikan
+            Positioned.fill(
+              top: MediaQuery.of(context).padding.top + kToolbarHeight + 68,
+              bottom: 185,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        width: 1.5,
                       ),
-                      child: Icon(
-                        hasClockedOut ? Icons.task_alt_rounded : Icons.verified_user_rounded,
-                        color: hasClockedOut ? const Color(0xFF34D399) : const Color(0xFF38BDF8),
-                        size: 38,
-                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      hasClockedOut ? 'Presensi Hari Ini Selesai' : 'Clock In Berhasil',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.access_time_rounded, size: 15, color: Colors.white70),
-                          const SizedBox(width: 6),
-                          Text(
-                            hasClockedOut
-                                ? 'In: ${_todayStatus?.clockInTime ?? "-"}  •  Out: ${_todayStatus?.clockOutTime ?? "-"}'
-                                : 'Tercatat pukul ${_todayStatus?.clockInTime ?? "-"}',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: (hasClockedOut ? const Color(0xFF10B981) : const Color(0xFF0284C7)).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF64748B).withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.videocam_off_rounded, size: 16, color: Colors.white70),
-                          SizedBox(width: 6),
-                          Text(
-                            'Kamera Dinonaktifkan',
-                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                          child: Icon(
+                            hasClockedOut ? Icons.task_alt_rounded : Icons.verified_user_rounded,
+                            color: hasClockedOut ? const Color(0xFF10B981) : const Color(0xFF0284C7),
+                            size: 36,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          hasClockedOut ? 'Presensi Hari Ini Selesai' : 'Clock In Berhasil',
+                          style: const TextStyle(
+                            color: Color(0xFF242721),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF365C4A).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time_rounded, size: 15, color: Color(0xFF365C4A)),
+                              const SizedBox(width: 6),
+                              Text(
+                                hasClockedOut
+                                    ? 'In: ${_todayStatus?.clockInTime ?? "-"}  •  Out: ${_todayStatus?.clockOutTime ?? "-"}'
+                                    : 'Tercatat pukul ${_todayStatus?.clockInTime ?? "-"}',
+                                style: const TextStyle(color: Color(0xFF242721), fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF64748B).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.videocam_off_rounded, size: 16, color: Color(0xFF64748B)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Kamera Dinonaktifkan',
+                                style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          hasClockedOut
+                              ? 'Seluruh rangkaian presensi hari ini telah diselesaikan.'
+                              : 'Kamera dimatikan setelah Clock In berhasil. Untuk Clock Out saat jam pulang, Anda hanya memerlukan verifikasi lokasi GPS.',
+                          style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.40),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      hasClockedOut
-                          ? 'Seluruh rangkaian presensi hari ini telah diselesaikan.'
-                          : 'Kamera dimatikan setelah Clock In berhasil. Untuk Clock Out saat jam pulang, Anda hanya memerlukan verifikasi lokasi GPS.',
-                      style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.45),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             )
           else if (_cameraErrorMessage != null)
             Center(
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 36),
-                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.amberAccent.withValues(alpha: 0.4)),
+                  color: Colors.white.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.videocam_off_rounded, color: Colors.amberAccent, size: 48),
+                    const Icon(Icons.videocam_off_rounded, color: Color(0xFFF59E0B), size: 48),
                     const SizedBox(height: 12),
                     const Text(
                       'Kamera Belum Terhubung',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(color: Color(0xFF242721), fontWeight: FontWeight.bold, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       _cameraErrorMessage!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                      style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.4),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: _initFrontCamera,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
+                        backgroundColor: const Color(0xFF365C4A),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       icon: const Icon(Icons.refresh, size: 18),
                       label: const Text('Coba Sambungkan Lagi', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -760,7 +787,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
           else
             Center(
               child: _isCameraLoading
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? const CircularProgressIndicator(color: Color(0xFF365C4A))
                   : const SizedBox.shrink(),
             ),
 
@@ -779,9 +806,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
+                color: Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -791,7 +825,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                     children: [
                       Icon(
                         _currentPosition != null ? Icons.my_location : Icons.location_searching,
-                        color: _currentPosition != null ? Colors.greenAccent : Colors.orangeAccent,
+                        color: _currentPosition != null ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                         size: 15,
                       ),
                       const SizedBox(width: 8),
@@ -800,7 +834,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                           _currentPosition != null
                               ? 'GPS: ${_currentPosition!.latitude.toStringAsFixed(5)}, ${_currentPosition!.longitude.toStringAsFixed(5)}'
                               : 'Mencari sinyal GPS akurat...',
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
+                          style: const TextStyle(color: Color(0xFF242721), fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.w600),
                           textAlign: TextAlign.center,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -817,8 +851,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                               ? Icons.check_circle_outline
                               : Icons.warning_amber_rounded,
                           color: _distanceToOffice! <= _officeLocation!.radius
-                              ? Colors.greenAccent
-                              : Colors.amberAccent,
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFD97706),
                           size: 14,
                         ),
                         const SizedBox(width: 6),
@@ -827,10 +861,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                             '${_officeLocation!.name}: ${_distanceToOffice!.toStringAsFixed(0)}m / ${_officeLocation!.radius}m (${_distanceToOffice! <= _officeLocation!.radius ? "Dalam Radius" : "Di Luar Radius"})',
                             style: TextStyle(
                               color: _distanceToOffice! <= _officeLocation!.radius
-                                  ? Colors.greenAccent
-                                  : Colors.amberAccent,
+                                  ? const Color(0xFF047857)
+                                  : const Color(0xFFB45309),
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -851,71 +885,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Instruction Guide Text
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.70),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white12),
+                // Instruction Guide Text (hanya tampil sebelum Clock In agar tidak menutupi kartu status di tengah)
+                if (!hasClockedIn) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      'Posisikan wajah Anda tepat di dalam bingkai oval',
+                      style: TextStyle(color: Color(0xFF242721), fontSize: 12, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                  child: Text(
-                    hasClockedIn && !hasClockedOut
-                        ? 'Kamera dinonaktifkan. Tekan tombol Clock Out untuk presensi pulang'
-                        : (hasClockedIn && hasClockedOut
-                            ? 'Presensi hari ini sudah lengkap (Clock In & Out selesai)'
-                            : 'Posisikan wajah Anda tepat di dalam bingkai oval'),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                ],
 
                 // 5. Bottom Action: Pilihan "Clock In" dan "Clock Out"
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.92),
+                    color: Colors.white.withValues(alpha: 0.94),
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: Colors.white12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
+                        color: Colors.black.withValues(alpha: 0.08),
                         blurRadius: 16,
-                        offset: const Offset(0, 8),
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(
                     children: [
-                      // Status Info Hari Ini (Ringkasan 1x per hari)
-                      if (hasClockedIn && hasClockedOut)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.task_alt_rounded, color: Color(0xFF10B981), size: 16),
-                              SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  'Presensi hari ini sudah lengkap (Clock In & Out selesai)',
-                                  style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.w600),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      Row(
-                        children: [
                       // ─── TOMBOL CLOCK IN (Absen Masuk) ───
                       Expanded(
                         child: _buildAttendanceButton(
@@ -950,12 +961,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
 
           // 6. Loading Modal Overlay saat proses berlangsung
           if (_isLoading)
@@ -998,9 +1007,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     required Color activeColor,
     required VoidCallback? onPressed,
   }) {
-    final Color bgColor = isEnabled ? activeColor : const Color(0xFF334155);
-    final Color textColor = isEnabled ? Colors.white : Colors.white38;
-    final Color iconColor = isEnabled ? Colors.white : Colors.white38;
+    final Color bgColor = isEnabled ? activeColor : const Color(0xFFE2E8F0);
+    final Color textColor = isEnabled ? Colors.white : const Color(0xFF94A3B8);
+    final Color iconColor = isEnabled ? Colors.white : const Color(0xFF94A3B8);
 
     return Material(
       color: Colors.transparent,
@@ -1020,7 +1029,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             boxShadow: isEnabled
                 ? [
                     BoxShadow(
-                      color: activeColor.withValues(alpha: 0.4),
+                      color: activeColor.withValues(alpha: 0.35),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -1044,7 +1053,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               Text(
                 subtitle,
                 style: TextStyle(
-                  color: isEnabled ? Colors.white.withValues(alpha: 0.85) : Colors.white30,
+                  color: isEnabled ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF94A3B8),
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1064,7 +1073,7 @@ class OvalHoleOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final backgroundPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.5)
+      ..color = Colors.black.withValues(alpha: 0.40)
       ..style = PaintingStyle.fill;
 
     final ovalWidth = size.width * 0.72;

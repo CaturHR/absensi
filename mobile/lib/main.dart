@@ -63,7 +63,7 @@ class AbsensiApp extends StatelessWidget {
   }
 }
 
-/// Wrapper navigasi utama dengan Bottom Navigation Bar
+/// Wrapper navigasi utama dengan Bottom Navigation Bar dan animasi transisi geser kaca modern (Liquid Glass Depth Transition)
 class MainNavigationWrapper extends StatefulWidget {
   final List<CameraDescription> cameras;
 
@@ -75,16 +75,18 @@ class MainNavigationWrapper extends StatefulWidget {
 
 class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   int _currentIndex = 0;
+  late final PageController _pageController;
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _pages = [
       HomeScreen(
         cameras: widget.cameras,
         onSwitchTab: (index) {
-          setState(() => _currentIndex = index);
+          _onTabSelected(index);
         },
       ),
       AttendanceScreen(cameras: widget.cameras),
@@ -95,20 +97,70 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  /// Pindah halaman dengan animasi kurva lereng halus (easeOutCubic) saat tab diklik
+  void _onTabSelected(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: LiquidGlassNavBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
+      body: PageView.builder(
+        controller: _pageController,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _pages.length,
+        onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
+        itemBuilder: (context, index) {
+          return AnimatedBuilder(
+            animation: _pageController,
+            builder: (context, child) {
+              double value = 0.0;
+              if (_pageController.position.haveDimensions) {
+                value = (_pageController.page ?? _pageController.initialPage.toDouble()) - index;
+              } else {
+                value = (_pageController.initialPage - index).toDouble();
+              }
+
+              // Hitung jarak penyimpangan dari halaman aktif (0.0 = fokus penuh)
+              final double delta = value.abs().clamp(0.0, 1.0);
+
+              // Animasi Kedalaman Skala Kaca (1.0 turun ke 0.93 saat digeser)
+              final double scale = 1.0 - (delta * 0.07);
+
+              // Animasi Kelembutan Opacity (1.0 turun ke 0.70)
+              final double opacity = 1.0 - (delta * 0.30);
+
+              return Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: child,
+                ),
+              );
+            },
+            child: _pages[index],
+          );
+        },
+      ),
+      bottomNavigationBar: LiquidGlassNavBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabSelected,
         destinations: const [
           LiquidNavItem(
             icon: Icons.home_outlined,

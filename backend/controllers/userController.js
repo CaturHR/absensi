@@ -14,7 +14,8 @@ const userController = {
    */
   createUser: async (req, res, next) => {
     try {
-      const { name, email, nip, password, role, divisi } = req.body;
+      const { name, email, nip, password, role, divisi, department } = req.body;
+      const targetDivisi = divisi || department;
 
       if (!name || !email || !nip || !password) {
         if (req.file && fs.existsSync(req.file.path)) {
@@ -63,7 +64,7 @@ const userController = {
         nip: nip.trim(),
         password: hashedPassword,
         role: role || 'user',
-        divisi: divisi ? divisi.trim() : null,
+        divisi: targetDivisi ? targetDivisi.trim() : null,
         face_photo: facePhoto,
       });
 
@@ -77,6 +78,7 @@ const userController = {
           nip: newUser.nip,
           role: newUser.role,
           divisi: newUser.divisi,
+          department: newUser.divisi,
           face_photo: newUser.face_photo,
         },
       });
@@ -134,7 +136,8 @@ const userController = {
   updateUser: async (req, res, next) => {
     try {
       const id = parseInt(req.params.id, 10);
-      const { name, email, nip, password, role, divisi } = req.body;
+      const { name, email, nip, password, role, divisi, department } = req.body;
+      const targetDivisi = divisi !== undefined ? divisi : department;
 
       const existingUser = await User.findById(id);
       if (!existingUser) {
@@ -149,7 +152,7 @@ const userController = {
       if (email) updateData.email = email;
       if (nip) updateData.nip = nip;
       if (role) updateData.role = role;
-      if (divisi !== undefined) updateData.divisi = divisi;
+      if (targetDivisi !== undefined) updateData.divisi = targetDivisi;
 
       if (password) {
         const salt = await bcrypt.genSalt(12);

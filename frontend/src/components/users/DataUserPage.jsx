@@ -69,6 +69,7 @@ export default function DataUserPage({ onBack, onLogout }) {
       name: user.name || '',
       email: user.email || '',
       nip: user.nip || '',
+      divisi: user.divisi || user.department || '',
       password: '',
     });
     setShowEditModal(true);
@@ -82,13 +83,14 @@ export default function DataUserPage({ onBack, onLogout }) {
         name: editForm.name,
         email: editForm.email,
         nip: editForm.nip,
+        divisi: editForm.divisi,
         ...(editForm.password ? { password: editForm.password } : {}),
       });
 
       setUsers((prev) =>
         prev.map((u) =>
           u.id === editingUser.id
-            ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip }
+            ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip, divisi: editForm.divisi, department: editForm.divisi }
             : u
         )
       );
@@ -207,6 +209,7 @@ export default function DataUserPage({ onBack, onLogout }) {
                   <th style={{ ...styles.th, minWidth: 140 }}>USERNAME</th>
                   <th style={{ ...styles.th, minWidth: 130 }}>PASSWORD</th>
                   <th style={{ ...styles.th, minWidth: 120 }}>NIP</th>
+                  <th style={{ ...styles.th, minWidth: 130 }}>DIVISI</th>
                   <th style={{ ...styles.th, width: 70, textAlign: 'center' }}>FOTO</th>
                   <th style={{ ...styles.th, width: 100, textAlign: 'center' }}>ACTION</th>
                 </tr>
@@ -214,14 +217,14 @@ export default function DataUserPage({ onBack, onLogout }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="8" style={styles.emptyCell}>
                       <div style={styles.spinner} />
                       <span style={{ color: '#8c9ab0', fontSize: 13 }}>Memuat data...</span>
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="8" style={styles.emptyCell}>
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />
@@ -251,6 +254,11 @@ export default function DataUserPage({ onBack, onLogout }) {
                       </td>
                       <td style={{ ...styles.td, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
                         {user.nip || '-'}
+                      </td>
+                      <td style={{ ...styles.td, fontSize: 13 }}>
+                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          {user.divisi || user.department || '-'}
+                        </span>
                       </td>
                       <td style={{ ...styles.td, textAlign: 'center' }}>
                         <button
@@ -393,6 +401,17 @@ export default function DataUserPage({ onBack, onLogout }) {
                   style={styles.modalInput}
                   value={editForm.nip}
                   onChange={(e) => setEditForm(f => ({ ...f, nip: e.target.value }))}
+                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+              <div style={styles.modalField}>
+                <label style={styles.modalLabel}>Divisi</label>
+                <input
+                  style={styles.modalInput}
+                  value={editForm.divisi}
+                  onChange={(e) => setEditForm(f => ({ ...f, divisi: e.target.value }))}
+                  placeholder="Contoh: Engineering, HR, Operasional"
                   onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
                   onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
                 />

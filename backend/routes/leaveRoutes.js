@@ -46,6 +46,12 @@ const upload = multer({
 // POST /api/leaves - Buat permohonan izin (karyawan, dengan file lampiran)
 router.post('/', authMiddleware, upload.single('attachment'), leaveController.create);
 
+// GET /api/leaves/today - Ambil permohonan izin hari ini milik user yang sedang login
+router.get('/today', authMiddleware, leaveController.getTodayLeave);
+
+// PUT /api/leaves/:id - Edit permohonan izin hari ini (karyawan, dengan file lampiran)
+router.put('/:id', authMiddleware, upload.single('attachment'), leaveController.update);
+
 // GET /api/leaves/my - Ambil izin milik user yang sedang login
 router.get('/my', authMiddleware, leaveController.getMyLeaves);
 

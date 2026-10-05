@@ -132,7 +132,7 @@ class HomeScreen extends StatelessWidget {
                         _buildMenuCard(
                           context: context,
                           title: 'Absen',
-                          subtitle: 'Clock In / Clock Out',
+                          subtitle: '',
                           icon: Icons.fingerprint_rounded,
                           gradientColors: const [
                             Color(0xFF10B981),

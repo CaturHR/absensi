@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { getTodayRangeWIB } = require('../utils/dateHelper');
 
 /**
  * Model LeaveRequest - Operasi database untuk tabel leave_requests.
@@ -45,6 +46,52 @@ const LeaveRequest = {
       attachment,
       status: 'pending',
     };
+  },
+
+  /**
+   * Update data izin yang sudah ada (alasan, keterangan, lampiran).
+   * @param {object} param - { id, reason, description, attachment }
+   * @returns {Promise<object>}
+   */
+  update: async ({ id, reason, description, attachment }) => {
+    if (attachment !== undefined) {
+      const [result] = await pool.execute(
+        `UPDATE leave_requests 
+         SET reason = ?, description = ?, attachment = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [reason, description || null, attachment, id]
+      );
+      return result;
+    } else {
+      const [result] = await pool.execute(
+        `UPDATE leave_requests 
+         SET reason = ?, description = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [reason, description || null, id]
+      );
+      return result;
+    }
+  },
+
+  /**
+   * Cek apakah user sudah mengajukan izin hari ini.
+   * Rentang waktu harian: 00:00:00 s/d 23:59:59 WIB.
+   * @param {number} userId
+   * @returns {Promise<object|null>}
+   */
+  findTodayByUserId: async (userId) => {
+    const { startOfDay, endOfDay } = getTodayRangeWIB();
+    const [rows] = await pool.execute(
+      `SELECT lr.*, u.name as user_name, u.nip as user_nip
+       FROM leave_requests lr
+       LEFT JOIN users u ON lr.user_id = u.id
+       WHERE lr.user_id = ? 
+         AND lr.created_at >= ? 
+         AND lr.created_at <= ?
+       ORDER BY lr.created_at DESC LIMIT 1`,
+      [userId, startOfDay, endOfDay]
+    );
+    return rows[0] || null;
   },
 
   /**

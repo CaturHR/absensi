@@ -208,7 +208,6 @@ export default function DataIzinPage({ onBack, onLogout }) {
                   <th style={{ ...styles.th, minWidth: 170 }}>NAMA</th>
                   <th style={{ ...styles.th, minWidth: 240 }}>ALASAN & KETERANGAN</th>
                   <th style={{ ...styles.th, minWidth: 150, textAlign: 'center' }}>SURAT / LAMPIRAN</th>
-                  <th style={{ ...styles.th, minWidth: 150 }}>CLOCK IN / CLOCK OUT</th>
                   <th style={{ ...styles.th, minWidth: 150 }}>APPROVAL</th>
                 </tr>
               </thead>
@@ -304,18 +303,6 @@ export default function DataIzinPage({ onBack, onLogout }) {
                           </button>
                         </td>
 
-                        {/* CLOCK IN / CLOCK OUT */}
-                        <td style={styles.td}>
-                          <div style={styles.clockContainer}>
-                            <div style={{ color: clockIn ? '#475569' : '#94a3b8' }}>
-                              In {clockIn || '-'}
-                            </div>
-                            <div style={{ color: clockOut ? '#475569' : '#94a3b8' }}>
-                              Out {clockOut || '-'}
-                            </div>
-                          </div>
-                        </td>
-
                         {/* APPROVAL */}
                         <td style={styles.td}>
                           <div style={styles.selectWrapper}>
@@ -327,7 +314,6 @@ export default function DataIzinPage({ onBack, onLogout }) {
                                 ...selectStyle,
                               }}
                             >
-                              <option value="pending" style={styles.optionPending}>Pilih tindakan</option>
                               <option value="approved" style={styles.optionApproved}>Setujui</option>
                               <option value="rejected" style={styles.optionRejected}>Ditolak</option>
                             </select>

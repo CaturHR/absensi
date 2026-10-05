@@ -2,6 +2,9 @@ node_modules/
 .env
 uploads/attendance/*
 uploads/faces/*
+uploads/leaves/*
 !uploads/attendance/.gitkeep
 !uploads/faces/.gitkeep
+!uploads/leaves/.gitkeep
 *.log
+

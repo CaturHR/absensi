@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { getTodayRangeWIB } = require('../utils/dateHelper');
 
 /**
  * Model Attendance - Operasi database untuk tabel attendance_logs.
@@ -196,12 +197,25 @@ const Attendance = {
        WHERE user_id = ? 
          AND created_at >= ? 
          AND created_at <= ? 
-         AND status IN ('Clock In', 'Clock Out')
+         AND status IN ('Clock In', 'Clock Out', 'Izin')
        ORDER BY created_at ASC`,
       [userId, startOfDay, endOfDay]
     );
     const clockIn = rows.find((r) => r.status === 'Clock In') || null;
     const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
+    const leaveLog = rows.find((r) => r.status === 'Izin') || null;
+
+    // Cek juga permohonan izin dari tabel leave_requests hari ini
+    const [leaveRows] = await pool.execute(
+      `SELECT id, user_id, reason, description, attachment, status, created_at FROM leave_requests
+       WHERE user_id = ? 
+         AND created_at >= ? 
+         AND created_at <= ? 
+       ORDER BY created_at DESC LIMIT 1`,
+      [userId, startOfDay, endOfDay]
+    );
+    const todayLeaveRequest = leaveRows[0] || null;
+    const hasLeaveToday = (todayLeaveRequest && todayLeaveRequest.status !== 'rejected') || !!leaveLog;
 
     const formatClockTime = (rec) => {
       if (!rec || !rec.created_at) return null;
@@ -227,6 +241,13 @@ const Attendance = {
         : null,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
+      hasLeaveToday: Boolean(hasLeaveToday),
+      todayLeave: todayLeaveRequest
+        ? {
+            ...todayLeaveRequest,
+            time: formatClockTime(todayLeaveRequest),
+          }
+        : (leaveLog ? { status: 'approved', reason: 'Izin', time: formatClockTime(leaveLog) } : null),
     };
   },
 
@@ -299,19 +320,5 @@ const Attendance = {
     return result.affectedRows > 0;
   },
 };
-
-/**
- * Helper untuk mendapatkan rentang waktu hari ini dalam zona waktu Indonesia (WIB / Asia/Jakarta).
- * Hari ini dihitung mulai pukul 00:00:00 hingga pukul 23:59:59 WIB.
- * Tepat setelah pukul 23:59 (pukul 00:00:00 hari berikutnya), sistem otomatis mereset presensi ke hari baru.
- */
-function getTodayRangeWIB() {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' });
-  const todayStr = formatter.format(now); // Format: YYYY-MM-DD
-  const startOfDay = `${todayStr} 00:00:00`;
-  const endOfDay = `${todayStr} 23:59:59`;
-  return { todayStr, startOfDay, endOfDay };
-}
 
 module.exports = Attendance;

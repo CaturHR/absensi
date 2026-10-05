@@ -47,6 +47,15 @@ const attendanceController = {
       // ──────────────────────────────────────────────
       const todayStatus = await Attendance.getTodayStatus(userId);
 
+      // Jika user sudah melakukan izin hari ini, Clock In dan Clock Out tidak dapat dilakukan
+      if (todayStatus.hasLeaveToday) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          success: false,
+          message: 'Anda sudah mengajukan izin hari ini, sehingga tidak dapat melakukan Clock In maupun Clock Out.',
+        });
+      }
+
       if (type === 'in' && todayStatus.hasClockedIn) {
         if (req.file) fs.unlinkSync(req.file.path);
         const inTime = (todayStatus.clockIn.time || new Date(todayStatus.clockIn.created_at).toLocaleTimeString('id-ID', {

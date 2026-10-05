@@ -36,18 +36,27 @@ class TodayAttendanceStatus {
   final bool hasClockedOut;
   final String? clockInTime;
   final String? clockOutTime;
+  final bool hasLeaveToday;
+  final String? leaveReason;
+  final String? leaveStatus;
+  final Map<String, dynamic>? todayLeave;
 
   TodayAttendanceStatus({
     required this.hasClockedIn,
     required this.hasClockedOut,
     this.clockInTime,
     this.clockOutTime,
+    this.hasLeaveToday = false,
+    this.leaveReason,
+    this.leaveStatus,
+    this.todayLeave,
   });
 
   factory TodayAttendanceStatus.fromJson(Map<String, dynamic> json) {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     final clockIn = data['clockIn'] as Map<String, dynamic>?;
     final clockOut = data['clockOut'] as Map<String, dynamic>?;
+    final todayLeave = data['todayLeave'] as Map<String, dynamic>?;
 
     String? formatTime(Map<String, dynamic>? record) {
       if (record == null) return null;
@@ -71,6 +80,10 @@ class TodayAttendanceStatus {
       hasClockedOut: data['hasClockedOut'] == true,
       clockInTime: formatTime(clockIn),
       clockOutTime: formatTime(clockOut),
+      hasLeaveToday: data['hasLeaveToday'] == true,
+      leaveReason: todayLeave?['reason']?.toString(),
+      leaveStatus: todayLeave?['status']?.toString(),
+      todayLeave: todayLeave,
     );
   }
 }
@@ -173,6 +186,31 @@ class AttendanceService {
     } catch (e) {
       // ignore
     }
+    return null;
+  }
+
+  /// Mengambil data permohonan izin hari ini milik user
+  /// Endpoint: GET /api/leaves/today
+  static Future<Map<String, dynamic>?> getTodayLeave() async {
+    try {
+      final uri = Uri.parse(ApiConstants.todayLeaveUrl);
+      final token = await _getAuthToken();
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['success'] == true && decoded['data'] != null) {
+          return decoded['data'] as Map<String, dynamic>;
+        }
+      }
+    } catch (_) {}
     return null;
   }
 

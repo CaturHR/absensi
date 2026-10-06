@@ -193,7 +193,7 @@ export default function DataIzinPage({ onBack, onLogout }) {
             </div>
             <div>
               <h2 style={styles.pageTitle}>Data Izin Karyawan</h2>
-              <p style={styles.pageSubtitle}>Daftar pengajuan izin dan peninjauan berkas lampiran resmi</p>
+              <p style={styles.pageSubtitle}>Daftar pengajuan izin dan peninjauan berkas lampiran</p>
             </div>
           </div>
         </div>

@@ -7,6 +7,9 @@ import UserPhotoModal from './UserPhotoModal';
 export default function DataUserPage({ onBack, onLogout }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pageSize, setPageSize] = useState('10'); // 10, 15, 50, 100, 200, 500, 'all'
+  const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPhotoUser, setSelectedPhotoUser] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -22,8 +25,10 @@ export default function DataUserPage({ onBack, onLogout }) {
     try {
       const res = await fetchUsers();
       if (res && res.data) {
-        // Filter hanya user (bukan admin)
-        setUsers(res.data.filter(u => u.role !== 'admin'));
+        // Tampilkan semua role (termasuk admin), diurutkan dari user.id terendah
+        const userList = Array.isArray(res.data) ? res.data : [];
+        const sorted = [...userList].sort((a, b) => Number(a.id) - Number(b.id));
+        setUsers(sorted);
       } else {
         setUsers([]);
       }
@@ -40,7 +45,7 @@ export default function DataUserPage({ onBack, onLogout }) {
   }, []);
 
   const handleUserCreated = (newUser) => {
-    setUsers((prev) => [newUser, ...prev]);
+    setUsers((prev) => [...prev, newUser].sort((a, b) => Number(a.id) - Number(b.id)));
     showNotif('success', `User "${newUser.name}" berhasil ditambahkan.`);
   };
 
@@ -115,6 +120,53 @@ export default function DataUserPage({ onBack, onLogout }) {
     return name.toLowerCase().replace(/\s+/g, '.');
   };
 
+  const handleSearchChange = (val) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  const handlePageSizeChange = (val) => {
+    setPageSize(val);
+    setCurrentPage(1);
+  };
+
+  // Pastikan data selalu diurutkan dari user.id terendah
+  const sortedUsers = [...users].sort((a, b) => Number(a.id) - Number(b.id));
+
+  // Filter user berdasarkan nama, username/email, nip, role, atau divisi
+  const filteredUsers = sortedUsers.filter((user) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const name = (user.name || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    const username = (user.username || getUsername(user.name) || '').toLowerCase();
+    const nip = (user.nip || '').toLowerCase();
+    const role = (user.role || '').toLowerCase();
+    const divisi = (user.divisi || user.department || '').toLowerCase();
+
+    return (
+      name.includes(q) ||
+      email.includes(q) ||
+      username.includes(q) ||
+      nip.includes(q) ||
+      role.includes(q) ||
+      divisi.includes(q)
+    );
+  });
+
+  // Logika Pagination / Pembatasan Tampilan Data
+  const isAll = pageSize === 'all';
+  const limit = isAll ? filteredUsers.length : parseInt(pageSize, 10) || 10;
+  const totalPages = isAll || limit === 0 ? 1 : Math.ceil(filteredUsers.length / limit) || 1;
+  const validPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  const paginatedUsers = isAll
+    ? filteredUsers
+    : filteredUsers.slice((validPage - 1) * limit, validPage * limit);
+
+  const startIndex = filteredUsers.length === 0 ? 0 : isAll ? 1 : (validPage - 1) * limit + 1;
+  const endIndex = isAll ? filteredUsers.length : Math.min(validPage * limit, filteredUsers.length);
+
   return (
     <div style={styles.wrapper}>
       {/* Top Header Bar */}
@@ -185,17 +237,81 @@ export default function DataUserPage({ onBack, onLogout }) {
             </div>
             <div>
               <h2 style={styles.pageTitle}>Data User</h2>
-              <p style={styles.pageSubtitle}>Daftar akun karyawan yang terdaftar di sistem</p>
+              <p style={styles.pageSubtitle}>
+                {searchQuery.trim()
+                  ? `Ditemukan ${filteredUsers.length} dari ${users.length} karyawan`
+                  : 'Daftar akun karyawan yang terdaftar di sistem'}
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            style={styles.addBtn}
-            onMouseEnter={(e) => e.currentTarget.style.background = '#174d76'}
-            onMouseLeave={(e) => e.currentTarget.style.background = '#1e5a8a'}
-          >
-            + Tambah User
-          </button>
+          <div style={styles.titleActions}>
+            {/* Limit Selector */}
+            <div style={styles.limitBox}>
+              <span style={styles.limitLabel}>Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(e.target.value)}
+                style={styles.limitSelect}
+                aria-label="Pilih jumlah data per halaman"
+              >
+                <option value="10">10 data</option>
+                <option value="15">15 data</option>
+                <option value="50">50 data</option>
+                <option value="100">100 data</option>
+                <option value="200">200 data</option>
+                <option value="500">500 data</option>
+                <option value="all">Semua (All)</option>
+              </select>
+            </div>
+
+            {/* Search Input Box */}
+            <div style={styles.searchBox}>
+              <span style={styles.searchIcon}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Cari nama, email, NIP, role..."
+                style={styles.searchInput}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#1e5a8a';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(30, 90, 138, 0.12)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d9e6';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => handleSearchChange('')}
+                  style={styles.clearSearchBtn}
+                  title="Hapus pencarian"
+                  aria-label="Hapus pencarian"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              style={styles.addBtn}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#174d76'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#1e5a8a'}
+            >
+              + Tambah User
+            </button>
+          </div>
         </div>
 
         {/* Data Table */}
@@ -206,8 +322,8 @@ export default function DataUserPage({ onBack, onLogout }) {
                 <tr style={styles.tableHead}>
                   <th style={{ ...styles.th, width: 50 }}>NO</th>
                   <th style={{ ...styles.th, minWidth: 180 }}>NAMA</th>
-                  <th style={{ ...styles.th, minWidth: 140 }}>USERNAME</th>
-                  <th style={{ ...styles.th, minWidth: 130 }}>PASSWORD</th>
+                  <th style={{ ...styles.th, minWidth: 140 }}>USERNAME/EMAIL</th>
+                  <th style={{ ...styles.th, minWidth: 130 }}>ROLE</th>
                   <th style={{ ...styles.th, minWidth: 120 }}>NIP</th>
                   <th style={{ ...styles.th, minWidth: 130 }}>DIVISI</th>
                   <th style={{ ...styles.th, width: 70, textAlign: 'center' }}>FOTO</th>
@@ -232,24 +348,51 @@ export default function DataUserPage({ onBack, onLogout }) {
                       <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>Belum ada user terdaftar</span>
                     </td>
                   </tr>
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={styles.emptyCell}>
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        <line x1="8" y1="11" x2="14" y2="11" />
+                      </svg>
+                      <span style={{ color: '#475569', fontSize: 13, marginTop: 8, fontWeight: 500 }}>
+                        Tidak ada user yang cocok dengan kata kunci "{searchQuery}"
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleSearchChange('')}
+                        style={styles.resetSearchBtn}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#dbeafe'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#eaf0f7'}
+                      >
+                        Reset Pencarian
+                      </button>
+                    </td>
+                  </tr>
                 ) : (
-                  users.map((user, index) => (
+                  paginatedUsers.map((user, index) => (
                     <tr key={user.id} style={styles.tableRow}
                       onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={styles.td}>{index + 1}</td>
+                      <td style={styles.td}>{startIndex + index}</td>
                       <td style={{ ...styles.td, fontWeight: 600, color: '#1a1a2e' }}>{user.name}</td>
-                      <td style={styles.td}>
-                        <span style={styles.usernameBadge}>{getUsername(user.name)}</span>
-                      </td>
-                      <td style={styles.td}>
-                        <span style={styles.passwordCell}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                          </svg>
-                          <span style={{ letterSpacing: 2 }}>••••••••</span>
+                      <td style={{ ...styles.td, fontWeight: 600, color: '#1a1a2e' }}>{user.email}</td>
+                      <td style={{ ...styles.td }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          background: user.role === 'admin' ? '#fef3c7' : '#e0f2fe',
+                          color: user.role === 'admin' ? '#92400e' : '#0369a1',
+                          border: user.role === 'admin' ? '1px solid #fde68a' : '1px solid #bae6fd',
+                        }}>
+                          {user.role}
                         </span>
                       </td>
                       <td style={{ ...styles.td, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
@@ -343,6 +486,56 @@ export default function DataUserPage({ onBack, onLogout }) {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Table Footer: Info Jumlah Data & Pagination Controls */}
+          <div style={styles.tableFooter}>
+            <div style={styles.footerInfo}>
+              Menampilkan <span style={{ fontWeight: 600, color: '#1e293b' }}>{filteredUsers.length === 0 ? 0 : `${startIndex} - ${endIndex}`}</span> dari <span style={{ fontWeight: 600, color: '#1e293b' }}>{filteredUsers.length}</span> user
+              {users.length !== filteredUsers.length && ` (total ${users.length} akun)`}
+            </div>
+
+            {!isAll && totalPages > 1 && (
+              <div style={styles.paginationControls}>
+                <button
+                  type="button"
+                  disabled={validPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  style={{
+                    ...styles.pageBtn,
+                    opacity: validPage <= 1 ? 0.45 : 1,
+                    cursor: validPage <= 1 ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Halaman Sebelumnya"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  <span>Prev</span>
+                </button>
+
+                <div style={styles.pageIndicator}>
+                  Halaman <strong style={{ color: '#1e5a8a' }}>{validPage}</strong> dari <strong>{totalPages}</strong>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={validPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  style={{
+                    ...styles.pageBtn,
+                    opacity: validPage >= totalPages ? 0.45 : 1,
+                    cursor: validPage >= totalPages ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Halaman Selanjutnya"
+                >
+                  <span>Next</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -602,6 +795,102 @@ const styles = {
     margin: '2px 0 0',
     fontWeight: 400,
   },
+  titleActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  limitBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: '#ffffff',
+    border: '1.5px solid #d1d9e6',
+    borderRadius: 12,
+    padding: '0 12px',
+    height: 42,
+    boxSizing: 'border-box',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+  },
+  limitLabel: {
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#64748b',
+    whiteSpace: 'nowrap',
+  },
+  limitSelect: {
+    border: 'none',
+    background: 'transparent',
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    cursor: 'pointer',
+    outline: 'none',
+    padding: '4px 0',
+    fontFamily: 'inherit',
+  },
+  searchBox: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    width: 280,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+    color: '#8c9ab0',
+  },
+  searchInput: {
+    width: '100%',
+    height: 42,
+    padding: '0 36px 0 38px',
+    fontSize: 13,
+    color: '#1a1a2e',
+    background: '#ffffff',
+    border: '1.5px solid #d1d9e6',
+    borderRadius: 12,
+    outline: 'none',
+    transition: 'all 0.2s ease',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  },
+  clearSearchBtn: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    background: '#e2e8f0',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#64748b',
+    padding: 0,
+    transition: 'all 0.15s ease',
+  },
+  resetSearchBtn: {
+    marginTop: 10,
+    padding: '6px 14px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    background: '#eaf0f7',
+    border: '1px solid #c9d8eb',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
   addBtn: {
     padding: '10px 22px',
     fontSize: 14,
@@ -621,6 +910,44 @@ const styles = {
     border: '1px solid #e8ecf1',
     boxShadow: '0 2px 16px rgba(0, 0, 0, 0.04)',
     overflow: 'hidden',
+  },
+  tableFooter: {
+    padding: '14px 20px',
+    background: '#f8fafc',
+    borderTop: '1px solid #e8ecf1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  footerInfo: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pageBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '6px 12px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  pageIndicator: {
+    fontSize: 12.5,
+    color: '#64748b',
+    padding: '0 6px',
   },
   tableScroll: {
     overflowX: 'auto',

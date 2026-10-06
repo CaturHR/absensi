@@ -137,9 +137,9 @@ class AttendanceService {
     return prefs.getString('auth_token');
   }
 
-  /// Mengambil data lokasi kantor/kampus aktif untuk geofencing
+  /// Mengambil data semua lokasi kantor/kampus aktif untuk geofencing multi-lokasi
   /// Endpoint: GET /api/locations/active
-  static Future<OfficeLocation?> getActiveOfficeLocation() async {
+  static Future<List<OfficeLocation>> getActiveOfficeLocations() async {
     try {
       final uri = Uri.parse(ApiConstants.activeLocationUrl);
       final token = await _getAuthToken();
@@ -155,11 +155,20 @@ class AttendanceService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded['success'] == true && decoded['data'] != null) {
-          return OfficeLocation.fromJson(decoded['data']);
+          final dataList = decoded['data'] as List<dynamic>;
+          return dataList
+              .map((item) => OfficeLocation.fromJson(item as Map<String, dynamic>))
+              .toList();
         }
       }
     } catch (_) {}
-    return null;
+    return [];
+  }
+
+  /// Backward compatibility: mengambil lokasi aktif pertama
+  static Future<OfficeLocation?> getActiveOfficeLocation() async {
+    final locations = await getActiveOfficeLocations();
+    return locations.isNotEmpty ? locations.first : null;
   }
 
   /// Mengambil status Clock In & Clock Out pengguna untuk hari ini

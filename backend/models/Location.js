@@ -5,21 +5,30 @@ const { pool } = require('../config/database');
  */
 const Location = {
   /**
-   * Ambil lokasi aktif (utama).
-   * Jika ada beberapa lokasi, ambil yang aktif.
+   * Ambil semua lokasi aktif.
+   * Digunakan untuk validasi geofencing multi-lokasi.
+   * @returns {Promise<Array>}
+   */
+  getAllActive: async () => {
+    const [rows] = await pool.execute(
+      'SELECT * FROM locations WHERE is_active = 1 ORDER BY created_at ASC'
+    );
+    if (rows.length > 0) return rows;
+
+    // Fallback jika tidak ada yang is_active = 1, ambil semua lokasi
+    const [fallbackRows] = await pool.execute(
+      'SELECT * FROM locations ORDER BY id ASC'
+    );
+    return fallbackRows;
+  },
+
+  /**
+   * Ambil lokasi aktif pertama (backward compatibility).
    * @returns {Promise<object|null>}
    */
   getActive: async () => {
-    const [rows] = await pool.execute(
-      'SELECT * FROM locations WHERE is_active = 1 LIMIT 1'
-    );
-    if (rows[0]) return rows[0];
-
-    // Fallback jika tidak ada yang is_active = 1, ambil lokasi pertama
-    const [fallbackRows] = await pool.execute(
-      'SELECT * FROM locations ORDER BY id ASC LIMIT 1'
-    );
-    return fallbackRows[0] || null;
+    const allActive = await Location.getAllActive();
+    return allActive[0] || null;
   },
 
   /**
@@ -49,11 +58,7 @@ const Location = {
    * @returns {Promise<object>}
    */
   create: async ({ name, latitude, longitude, radius, is_active = 1 }) => {
-    // Jika lokasi baru aktif, nonaktifkan lokasi lain
-    if (is_active) {
-      await pool.execute('UPDATE locations SET is_active = 0');
-    }
-
+    // Semua lokasi baru langsung aktif, tidak menonaktifkan lokasi lain
     const [result] = await pool.execute(
       'INSERT INTO locations (name, latitude, longitude, radius, is_active) VALUES (?, ?, ?, ?, ?)',
       [name, latitude, longitude, radius, is_active]
@@ -68,11 +73,7 @@ const Location = {
    * @returns {Promise<object>}
    */
   update: async (id, { name, latitude, longitude, radius, is_active }) => {
-    // Jika diaktifkan, nonaktifkan yang lain
-    if (is_active) {
-      await pool.execute('UPDATE locations SET is_active = 0 WHERE id != ?', [id]);
-    }
-
+    // Update lokasi tanpa menonaktifkan lokasi lain
     const [result] = await pool.execute(
       `UPDATE locations SET name = ?, latitude = ?, longitude = ?, radius = ?, is_active = ?, updated_at = NOW()
        WHERE id = ?`,

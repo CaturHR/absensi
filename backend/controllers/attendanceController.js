@@ -134,11 +134,11 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 5. Ambil lokasi kantor/kampus dari database
+      // 5. Ambil SEMUA lokasi aktif dari database
       // ──────────────────────────────────────────────
-      const location = await Location.getActive();
+      const allLocations = await Location.getAllActive();
 
-      if (!location) {
+      if (!allLocations || allLocations.length === 0) {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(404).json({
           success: false,
@@ -147,41 +147,68 @@ const attendanceController = {
       }
 
       // ──────────────────────────────────────────────
-      // 6. Hitung jarak menggunakan Haversine
+      // 6. Hitung jarak ke setiap lokasi dan cari yang terdekat dalam radius
       // ──────────────────────────────────────────────
-      const distance = haversine(lat, lng, location.latitude, location.longitude);
-      const radius = location.radius || parseInt(process.env.DEFAULT_RADIUS_METERS, 10) || 100;
+      let matchedLocation = null;
+      let shortestDistance = Infinity;
+
+      for (const loc of allLocations) {
+        const dist = haversine(lat, lng, loc.latitude, loc.longitude);
+        const locRadius = loc.radius || parseInt(process.env.DEFAULT_RADIUS_METERS, 10) || 100;
+
+        if (dist <= locRadius && dist < shortestDistance) {
+          matchedLocation = loc;
+          shortestDistance = dist;
+        }
+      }
 
       // ──────────────────────────────────────────────
-      // 7. Cek geofencing - Jika di luar radius
+      // 7. Cek geofencing - Jika tidak berada dalam radius lokasi manapun
       // ──────────────────────────────────────────────
-      if (distance > radius) {
-        // Simpan log dengan status "Di Luar Radius"
+      if (!matchedLocation) {
+        // Hitung jarak ke lokasi terdekat untuk ditampilkan di pesan error
+        let closestLoc = allLocations[0];
+        let closestDist = haversine(lat, lng, allLocations[0].latitude, allLocations[0].longitude);
+        for (let i = 1; i < allLocations.length; i++) {
+          const dist = haversine(lat, lng, allLocations[i].latitude, allLocations[i].longitude);
+          if (dist < closestDist) {
+            closestLoc = allLocations[i];
+            closestDist = dist;
+          }
+        }
+        const closestRadius = closestLoc.radius || parseInt(process.env.DEFAULT_RADIUS_METERS, 10) || 100;
+
         const photoRelativePath = req.file ? `attendance/${req.file.filename}` : null;
 
         const attendanceLog = await Attendance.create({
           user_id: userId,
           latitude: lat,
           longitude: lng,
-          distance,
+          distance: closestDist,
           face_confidence: null,
           status: 'Di Luar Radius',
           photo: photoRelativePath,
-          location_id: location.id,
+          location_id: closestLoc.id,
         });
 
         return res.status(200).json({
           success: false,
-          message: `Anda berada di luar radius. Jarak Anda: ${distance} meter, radius maksimum: ${radius} meter.`,
+          message: `Anda berada di luar radius semua lokasi terdaftar. Lokasi terdekat: "${closestLoc.name}" (jarak: ${closestDist} meter, radius: ${closestRadius} meter).`,
           data: {
             id: attendanceLog.id,
             status: 'Di Luar Radius',
-            distance,
-            radius,
+            distance: closestDist,
+            radius: closestRadius,
+            closestLocation: closestLoc.name,
             timestamp: new Date().toISOString(),
           },
         });
       }
+
+      // Gunakan lokasi yang cocok (terdekat dalam radius)
+      const location = matchedLocation;
+      const distance = shortestDistance;
+      const radius = location.radius || parseInt(process.env.DEFAULT_RADIUS_METERS, 10) || 100;
 
       // ──────────────────────────────────────────────
       // 8. Face Recognition

@@ -23,7 +23,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   bool _isLoading = false;
   String _loadingMessage = '';
   Position? _currentPosition;
-  OfficeLocation? _officeLocation;
+  List<OfficeLocation> _officeLocations = [];
+  OfficeLocation? _officeLocation; // Lokasi terdekat dalam radius
   TodayAttendanceStatus? _todayStatus;
 
   @override
@@ -36,7 +37,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   /// Inisialisasi awal layar: cek status absensi terlebih dahulu
   Future<void> _initAttendanceScreen() async {
     _fetchQuickLocation();
-    _fetchOfficeLocation();
+    _fetchOfficeLocations();
     await _fetchTodayStatus();
 
     // Matikan / jangan nyalakan kamera jika sudah Clock In atau sudah Izin hari ini
@@ -66,11 +67,58 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     } catch (_) {}
   }
 
-  Future<void> _fetchOfficeLocation() async {
-    final office = await AttendanceService.getActiveOfficeLocation();
+  /// Ambil semua lokasi kantor aktif untuk geofencing multi-lokasi
+  Future<void> _fetchOfficeLocations() async {
+    final offices = await AttendanceService.getActiveOfficeLocations();
     if (mounted) {
-      setState(() => _officeLocation = office);
+      setState(() {
+        _officeLocations = offices;
+        _updateClosestLocation();
+      });
     }
+  }
+
+  /// Update lokasi terdekat berdasarkan posisi GPS saat ini
+  void _updateClosestLocation() {
+    if (_currentPosition == null || _officeLocations.isEmpty) {
+      _officeLocation = _officeLocations.isNotEmpty ? _officeLocations.first : null;
+      return;
+    }
+
+    OfficeLocation? closest;
+    double shortestDist = double.infinity;
+
+    for (final loc in _officeLocations) {
+      final dist = Geolocator.distanceBetween(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+        loc.latitude,
+        loc.longitude,
+      );
+      if (dist <= loc.radius && dist < shortestDist) {
+        closest = loc;
+        shortestDist = dist;
+      }
+    }
+
+    // Jika tidak ada yang dalam radius, tampilkan yang paling dekat
+    if (closest == null) {
+      double minDist = double.infinity;
+      for (final loc in _officeLocations) {
+        final dist = Geolocator.distanceBetween(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+          loc.latitude,
+          loc.longitude,
+        );
+        if (dist < minDist) {
+          closest = loc;
+          minDist = dist;
+        }
+      }
+    }
+
+    _officeLocation = closest;
   }
 
   double? get _distanceToOffice {
@@ -220,7 +268,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   Future<void> _fetchQuickLocation() async {
     try {
       final pos = await LocationService.getCurrentPosition();
-      if (mounted) setState(() => _currentPosition = pos);
+      if (mounted) {
+        setState(() {
+          _currentPosition = pos;
+          _updateClosestLocation();
+        });
+      }
     } catch (_) {}
   }
 
@@ -268,7 +321,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       });
 
       final Position position = await LocationService.getCurrentPosition();
-      setState(() => _currentPosition = position);
+      setState(() {
+        _currentPosition = position;
+        _updateClosestLocation();
+      });
 
       // ──────────────────────────────────────────────
       // 3. Kirim multipart request ke backend

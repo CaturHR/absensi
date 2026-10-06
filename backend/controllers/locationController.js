@@ -6,12 +6,12 @@ const Location = require('../models/Location');
 const locationController = {
   /**
    * GET /api/locations/active
-   * Ambil lokasi aktif saat ini (bisa diakses oleh user/karyawan).
+   * Ambil semua lokasi aktif saat ini (untuk user/karyawan validasi geofencing multi-lokasi).
    */
   getActiveLocation: async (req, res, next) => {
     try {
-      const location = await Location.getActive();
-      if (!location) {
+      const locations = await Location.getAllActive();
+      if (!locations || locations.length === 0) {
         return res.status(404).json({
           success: false,
           message: 'Lokasi kantor aktif belum dikonfigurasi.',
@@ -19,7 +19,7 @@ const locationController = {
       }
       return res.status(200).json({
         success: true,
-        data: location,
+        data: locations,
       });
     } catch (error) {
       next(error);

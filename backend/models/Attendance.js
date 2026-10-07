@@ -93,7 +93,8 @@ const Attendance = {
     // Pagination
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT a.*, a.photo as attendance_photo, u.name as user_name, u.nip as user_nip, u.email as user_email,
+      `SELECT a.*, a.photo as attendance_photo, u.name as user_name, u.nip as user_nip,
+              u.email as user_email, u.email as email,
               u.face_photo as master_photo, l.name as location_name
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
@@ -120,7 +121,7 @@ const Attendance = {
    */
   findByUserId: async (userId, { page = 1, limit = 20 } = {}) => {
     const [countResult] = await pool.execute(
-      'SELECT COUNT(*) as total FROM attendance_logs WHERE user_id = ?',
+      "SELECT COUNT(*) as total FROM attendance_logs WHERE user_id = ? AND status IN ('Clock In', 'Clock Out', 'Izin', 'Hadir')",
       [userId]
     );
     const total = countResult[0].total;
@@ -130,7 +131,7 @@ const Attendance = {
       `SELECT a.*, l.name as location_name
        FROM attendance_logs a
        LEFT JOIN locations l ON a.location_id = l.id
-       WHERE a.user_id = ?
+       WHERE a.user_id = ? AND a.status IN ('Clock In', 'Clock Out', 'Izin', 'Hadir')
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
       [userId, limit.toString(), offset.toString()]
@@ -197,13 +198,15 @@ const Attendance = {
        WHERE user_id = ? 
          AND created_at >= ? 
          AND created_at <= ? 
-         AND status IN ('Clock In', 'Clock Out', 'Izin')
+         AND status IN ('Clock In', 'Clock Out', 'Izin', 'pending', 'Wajah Tidak Cocok')
        ORDER BY created_at ASC`,
       [userId, startOfDay, endOfDay]
     );
     const clockIn = rows.find((r) => r.status === 'Clock In') || null;
     const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
     const leaveLog = rows.find((r) => r.status === 'Izin') || null;
+    const pendingLog = rows.find((r) => r.status === 'pending') || null;
+    const rejectedLog = rows.find((r) => r.status === 'Wajah Tidak Cocok') || null;
 
     // Cek juga permohonan izin dari tabel leave_requests hari ini
     const [leaveRows] = await pool.execute(
@@ -239,8 +242,22 @@ const Attendance = {
             time: formatClockTime(clockOut),
           }
         : null,
+      pending: pendingLog
+        ? {
+            ...pendingLog,
+            time: formatClockTime(pendingLog),
+          }
+        : null,
+      rejected: rejectedLog
+        ? {
+            ...rejectedLog,
+            time: formatClockTime(rejectedLog),
+          }
+        : null,
       hasClockedIn: !!clockIn,
       hasClockedOut: !!clockOut,
+      hasPendingReview: !clockIn && !!pendingLog,
+      hasRejectedToday: !clockIn && !pendingLog && !!rejectedLog,
       hasLeaveToday: Boolean(hasLeaveToday),
       todayLeave: todayLeaveRequest
         ? {

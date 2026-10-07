@@ -34,7 +34,7 @@ CREATE TABLE `attendance_logs` (
   `longitude` double NOT NULL COMMENT 'Longitude lokasi user saat absensi',
   `distance` double DEFAULT NULL COMMENT 'Jarak ke lokasi kantor (meter)',
   `face_confidence` double DEFAULT NULL COMMENT 'Confidence score face comparison (0-100)',
-  `status` enum('Clock In','Clock Out','Di Luar Radius','Wajah Tidak Cocok','Gagal Verifikasi Wajah','Izin') NOT NULL,
+  `status` enum('Clock In','Clock Out','Di Luar Radius','Wajah Tidak Cocok','Gagal Verifikasi Wajah','Izin','pending') NOT NULL,
   `photo` varchar(255) DEFAULT NULL COMMENT 'Path relatif ke foto absensi',
   `location_id` int(11) DEFAULT NULL COMMENT 'Lokasi kantor/kampus yang digunakan saat absensi',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()

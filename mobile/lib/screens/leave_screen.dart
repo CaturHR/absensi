@@ -149,6 +149,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   /// Submit permohonan izin (baru atau edit)
   Future<void> _submitLeaveRequest() async {
+    if (_isSubmitting) return;
+
     if (_hasClockedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

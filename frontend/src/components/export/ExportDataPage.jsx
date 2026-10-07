@@ -164,14 +164,17 @@ export default function ExportDataPage({ onBack, onLogout }) {
             if (!dateStr) return;
 
             const st = (log.status || '').toLowerCase();
+            if (st.includes('tidak cocok') || st === 'pending') {
+              // Not match / ditolak terhitung Alpha dan tidak masuk hitungan hadir
+              return;
+            }
             if (st.includes('izin') || st.includes('leave')) {
               izinDates.add(dateStr);
             } else if (
               st.includes('clock in') ||
               st.includes('clock out') ||
               st.includes('hadir') ||
-              st.includes('radius') ||
-              st.includes('cocok')
+              (st.includes('cocok') && !st.includes('tidak cocok'))
             ) {
               hadirDates.add(dateStr);
             }
@@ -302,10 +305,15 @@ export default function ExportDataPage({ onBack, onLogout }) {
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Rekapitulasi Kehadiran');
 
       // ─────────────────────────────────────────────────────────────
-      // SHEET 2: Detail Log Absensi Lengkap
+      // SHEET 2: Detail Log Absensi Lengkap (Hanya Log Sah / Disetujui)
       // ─────────────────────────────────────────────────────────────
-      if (logs.length > 0) {
-        const detailRows = logs.map((item, idx) => {
+      const validLogs = logs.filter((l) => {
+        const st = (l.status || '').toLowerCase();
+        return st !== 'pending' && !st.includes('tidak cocok');
+      });
+
+      if (validLogs.length > 0) {
+        const detailRows = validLogs.map((item, idx) => {
           const dateObj = new Date(item.created_at);
           const formattedDate = !isNaN(dateObj.getTime())
             ? dateObj.toLocaleDateString('id-ID', {
@@ -665,94 +673,6 @@ export default function ExportDataPage({ onBack, onLogout }) {
               <div style={{ ...styles.kpiCard, borderLeft: '4px solid #dc2626' }}>
                 <span style={styles.kpiLabel}>Total Alpha</span>
                 <span style={{ ...styles.kpiVal, color: '#dc2626' }}>{totalAlphaAll}</span>
-              </div>
-            </div>
-
-            {/* Live Preview Table Per User */}
-            <div style={styles.previewSection}>
-              <div style={styles.previewHeaderRow}>
-                <span style={styles.previewTitle}>
-                  👥 Ringkasan Presensi Per Karyawan ({userSummaries.length} Orang)
-                </span>
-                {isLoadingPreview && (
-                  <span style={styles.calculatingBadge}>Menghitung data...</span>
-                )}
-              </div>
-
-              <div style={styles.tableWrapper}>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...styles.th, width: '40px' }}>No</th>
-                      <th style={styles.th}>Nama Karyawan</th>
-                      <th style={styles.th}>NIP</th>
-                      <th style={{ ...styles.th, textAlign: 'center' }}>Hadir</th>
-                      <th style={{ ...styles.th, textAlign: 'center' }}>Izin</th>
-                      <th style={{ ...styles.th, textAlign: 'center' }}>Alpha</th>
-                      <th style={{ ...styles.th, textAlign: 'center' }}>Kehadiran</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {isLoadingPreview ? (
-                      <tr>
-                        <td colSpan={7} style={styles.emptyTd}>
-                          <div style={styles.tableSpinner} />
-                          <span>Memuat rekapitulasi data per karyawan...</span>
-                        </td>
-                      </tr>
-                    ) : userSummaries.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} style={styles.emptyTd}>
-                          Belum ada data absensi untuk rentang tanggal ini.
-                        </td>
-                      </tr>
-                    ) : (
-                      userSummaries.map((user, idx) => (
-                        <tr
-                          key={user.id || idx}
-                          style={idx % 2 === 0 ? styles.trEven : styles.trOdd}
-                        >
-                          <td style={styles.tdCenter}>{idx + 1}</td>
-                          <td style={styles.tdName}>
-                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{user.name}</div>
-                            <div style={{ fontSize: 11, color: '#64748b' }}>{user.email}</div>
-                          </td>
-                          <td style={styles.tdText}>{user.nip || '-'}</td>
-                          <td style={styles.tdCenter}>
-                            <span style={styles.badgeHadir}>{user.hadirCount}</span>
-                          </td>
-                          <td style={styles.tdCenter}>
-                            <span style={styles.badgeIzin}>{user.izinCount}</span>
-                          </td>
-                          <td style={styles.tdCenter}>
-                            <span style={styles.badgeAlpha}>{user.alphaCount}</span>
-                          </td>
-                          <td style={styles.tdCenter}>
-                            <span
-                              style={{
-                                ...styles.badgeRate,
-                                background:
-                                  user.attendanceRate >= 80
-                                    ? '#f0fdf4'
-                                    : user.attendanceRate >= 50
-                                    ? '#fefce8'
-                                    : '#fef2f2',
-                                color:
-                                  user.attendanceRate >= 80
-                                    ? '#16a34a'
-                                    : user.attendanceRate >= 50
-                                    ? '#ca8a04'
-                                    : '#dc2626',
-                              }}
-                            >
-                              {user.attendanceRate}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
 

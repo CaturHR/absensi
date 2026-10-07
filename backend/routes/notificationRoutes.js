@@ -81,11 +81,18 @@ router.get('/stream', sseAuthMiddleware, adminOnly, (req, res) => {
     }
   }, 30000);
 
-  // Bersihkan saat koneksi ditutup
-  req.on('close', () => {
+  let cleanedUp = false;
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
     clearInterval(heartbeat);
     removeConnection(userId, res);
-  });
+  };
+
+  // Bersihkan saat koneksi ditutup dari client atau server
+  req.on('close', cleanup);
+  res.on('close', cleanup);
+  res.on('finish', cleanup);
 });
 
 module.exports = router;

@@ -59,14 +59,25 @@ function broadcastToAdmins(eventName, data) {
   let sentCount = 0;
 
   for (const [userId, connections] of activeConnections.entries()) {
+    const deadConnections = [];
     for (const res of connections) {
+      if (res.writableEnded || res.destroyed) {
+        deadConnections.push(res);
+        continue;
+      }
       try {
         res.write(payload);
         sentCount++;
       } catch (err) {
         console.error(`📡 SSE: Gagal kirim ke admin ${userId}:`, err.message);
-        connections.delete(res);
+        deadConnections.push(res);
       }
+    }
+    for (const deadRes of deadConnections) {
+      connections.delete(deadRes);
+    }
+    if (connections.size === 0) {
+      activeConnections.delete(userId);
     }
   }
 

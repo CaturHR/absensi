@@ -28,6 +28,20 @@ export default function DataIzinPage({ onBack, onLogout }) {
 
   useEffect(() => {
     loadLeaves();
+
+    const handleRealtimeLeave = (e) => {
+      const data = e.detail;
+      console.log('[DataIzinPage] Permohonan izin real-time diterima, memperbarui data...', data);
+      loadLeaves();
+      if (data?.userName) {
+        showNotif('info', `Permohonan izin baru dari ${data.userName}: ${data.reason || ''}`);
+      }
+    };
+
+    window.addEventListener('app:leave-request', handleRealtimeLeave);
+    return () => {
+      window.removeEventListener('app:leave-request', handleRealtimeLeave);
+    };
   }, []);
 
   const showNotif = (type, message) => {

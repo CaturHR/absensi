@@ -69,6 +69,22 @@ const attendanceController = {
         });
       }
 
+      if (type === 'in' && todayStatus.hasPendingReview) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          success: false,
+          message: 'Presensi Anda sebelumnya sedang menunggu review approval admin. Silakan tunggu konfirmasi dari admin.',
+        });
+      }
+
+      if (type === 'in' && todayStatus.hasRejectedToday) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          success: false,
+          message: 'Presensi Anda hari ini telah ditolak oleh admin (Wajah Tidak Cocok / Terhitung Alpha).',
+        });
+      }
+
       if (type === 'out') {
         if (!todayStatus.hasClockedIn) {
           if (req.file) fs.unlinkSync(req.file.path);
@@ -212,11 +228,65 @@ const attendanceController = {
 
       // ──────────────────────────────────────────────
       // 8. Face Recognition
-      // Clock In: identifikasi wajah aktif (bypass skor 100).
+      // Clock In: komparasi wajah aktif. Jika tidak cocok (not match) -> status 'pending'
       // Clock Out: tidak membutuhkan foto/wajah, langsung simpan.
       // ──────────────────────────────────────────────
-      const faceConfidence = type === 'in' ? 100.0 : null;
-      const faceStatus = type === 'in' ? 'Clock In' : 'Clock Out';
+      let faceConfidence = null;
+      let faceStatus = type === 'in' ? 'Clock In' : 'Clock Out';
+      let isFaceMatch = true;
+
+      if (type === 'in') {
+        const facePhotoRelative = await User.getFacePhoto(userId);
+
+        if (!facePhotoRelative) {
+          faceConfidence = 0;
+          faceStatus = 'pending';
+          isFaceMatch = false;
+        } else {
+          const masterFacePath = path.join(UPLOAD_DIR_FACES, path.basename(facePhotoRelative));
+          const attendanceFacePath = req.file.path;
+
+          if (!fs.existsSync(masterFacePath)) {
+            faceConfidence = 0;
+            faceStatus = 'pending';
+            isFaceMatch = false;
+          } else {
+            try {
+              // Cek parameter manual/mock override untuk testing
+              if (
+                req.body.is_match === 'false' ||
+                req.body.not_match === 'true' ||
+                req.body.force_not_match === 'true' ||
+                req.query.not_match === 'true'
+              ) {
+                faceConfidence = 38.5;
+                faceStatus = 'pending';
+                isFaceMatch = false;
+              } else {
+                const faceResult = await compareFaces(masterFacePath, attendanceFacePath);
+                faceConfidence = faceResult.confidence;
+                const confidenceThreshold = faceResult.thresholds
+                  ? (faceResult.thresholds['1e-3'] || 60)
+                  : 60;
+
+                if (faceConfidence >= confidenceThreshold) {
+                  faceStatus = 'Clock In';
+                  isFaceMatch = true;
+                } else {
+                  // Not match: Wajah tidak cocok -> status 'pending'
+                  faceStatus = 'pending';
+                  isFaceMatch = false;
+                }
+              }
+            } catch (faceErr) {
+              console.error('Face comparison error (status diset ke pending):', faceErr.message);
+              faceConfidence = 0;
+              faceStatus = 'pending';
+              isFaceMatch = false;
+            }
+          }
+        }
+      }
 
       // ──────────────────────────────────────────────
       // 9. Simpan log absensi dengan status final
@@ -235,7 +305,7 @@ const attendanceController = {
       });
 
       // ──────────────────────────────────────────────
-      // 9. Response
+      // 10. Response
       // ──────────────────────────────────────────────
       const isSuccess = faceStatus === 'Clock In' || faceStatus === 'Clock Out';
       const statusCode = 200;
@@ -247,11 +317,19 @@ const attendanceController = {
         timeZone: 'Asia/Jakarta',
       }).replace('.', ':');
 
+      let message = '';
+      if (faceStatus === 'pending') {
+        message = `Wajah tidak cocok (Akurasi: ${faceConfidence ? faceConfidence + '%' : 'Not Match'}). Presensi Anda berstatus pending dan sedang menunggu review approval dari admin.`;
+      } else if (isSuccess) {
+        message = `${actionLabel} berhasil pada pukul ${timeStr}.`;
+      } else {
+        message = `${actionLabel} gagal.`;
+      }
+
       return res.status(statusCode).json({
         success: isSuccess,
-        message: isSuccess
-          ? `${actionLabel} berhasil pada pukul ${timeStr}.`
-          : `${actionLabel} gagal. Wajah tidak cocok (confidence: ${faceConfidence}%).`,
+        status: faceStatus,
+        message,
         data: {
           id: attendanceLog.id,
           status: faceStatus,

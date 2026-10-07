@@ -177,8 +177,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
   /// Inisialisasi kamera depan untuk selfie presensi real-time
   Future<void> _initFrontCamera() async {
-    // Jangan inisialisasi jika pengguna sudah Clock In atau sudah Izin hari ini
-    if (_todayStatus?.hasClockedIn == true || _todayStatus?.hasLeaveToday == true) {
+    // Jangan inisialisasi jika pengguna sudah Clock In, sudah Izin, sedang menunggu review, atau ditolak
+    if (_todayStatus?.hasClockedIn == true || _todayStatus?.hasLeaveToday == true || _todayStatus?.hasPendingReview == true || _todayStatus?.hasRejectedToday == true) {
       if (mounted) {
         setState(() {
           _isCameraLoading = false;
@@ -345,9 +345,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
       // Refresh status absensi hari ini dari server
       await _fetchTodayStatus();
 
-      // Jika Clock In berhasil, segera matikan kamera
-      final isClockInSuccess = isClockIn && (result.isSuccess || result.status == 'Clock In' || (_todayStatus?.hasClockedIn ?? false));
-      if (isClockInSuccess) {
+      // Jika Clock In berhasil atau berstatus pending review, segera matikan kamera
+      final isClockInFinished = isClockIn && (result.isSuccess || result.status == 'Clock In' || result.status == 'pending' || (_todayStatus?.hasClockedIn ?? false) || (_todayStatus?.hasPendingReview ?? false));
+      if (isClockInFinished) {
         await _disposeCamera();
       }
 
@@ -388,6 +388,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
   /// Pop-up Dialog Hasil Presensi Sesuai Permintaan
   void _showAttendanceResultDialog(AttendanceResult result, String type) {
     final isPresent = result.status == 'Clock In' || result.status == 'Clock Out' || result.isSuccess;
+    final isPending = result.status == 'pending';
     final isOutOfRadius = result.status == 'Di Luar Radius';
     final isClockIn = type == 'in';
     final actionLabel = isClockIn ? 'Clock In' : 'Clock Out';
@@ -397,15 +398,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
     Color primaryColor = isPresent
         ? const Color(0xFF10B981) // Emerald Green
-        : isOutOfRadius
-            ? const Color(0xFFEF4444)
-            : const Color(0xFFF59E0B);
+        : isPending
+            ? const Color(0xFFF59E0B) // Amber
+            : isOutOfRadius
+                ? const Color(0xFFEF4444)
+                : const Color(0xFFEF4444);
 
     IconData statusIcon = isPresent
         ? Icons.check_circle_rounded
-        : isOutOfRadius
-            ? Icons.location_off_rounded
-            : Icons.face_retouching_off_rounded;
+        : isPending
+            ? Icons.hourglass_top_rounded
+            : isOutOfRadius
+                ? Icons.location_off_rounded
+                : Icons.face_retouching_off_rounded;
 
     showDialog(
       context: context,
@@ -432,7 +437,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
 
               // Judul Pop Up
               Text(
-                isPresent ? '$actionLabel Berhasil!' : '$actionLabel Gagal',
+                isPresent
+                    ? '$actionLabel Berhasil!'
+                    : isPending
+                        ? 'Menunggu Review Admin'
+                        : '$actionLabel Gagal',
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.bold,
@@ -442,33 +451,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
               ),
               const SizedBox(height: 10),
 
-              // Pesan Waktu Presensi: "Clock In berhasil pada jam 08:30"
+              // Pesan Waktu Presensi: "Clock In berhasil pada jam 08:30" atau Menunggu Review
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   color: isPresent
                       ? const Color(0xFF10B981).withValues(alpha: 0.08)
-                      : Colors.red.withValues(alpha: 0.08),
+                      : isPending
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.08)
+                          : Colors.red.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Icons.access_time_filled_rounded,
+                      isPending ? Icons.hourglass_bottom_rounded : Icons.access_time_filled_rounded,
                       size: 18,
-                      color: isPresent ? const Color(0xFF10B981) : Colors.red,
+                      color: isPresent
+                          ? const Color(0xFF10B981)
+                          : isPending
+                              ? const Color(0xFFD97706)
+                              : Colors.red,
                     ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         isPresent
                             ? '$actionLabel berhasil pada jam $displayTime'
-                            : result.message,
+                            : isPending
+                                ? 'Wajah tidak cocok (not match). Presensi pada jam $displayTime sedang menunggu persetujuan (review) admin.'
+                                : result.message,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isPresent ? const Color(0xFF065F46) : Colors.red.shade800,
+                          color: isPresent
+                              ? const Color(0xFF065F46)
+                              : isPending
+                                  ? const Color(0xFFB45309)
+                                  : Colors.red.shade800,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -613,19 +634,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
     final hasClockedIn = _todayStatus?.hasClockedIn ?? false;
     final hasClockedOut = _todayStatus?.hasClockedOut ?? false;
     final hasLeaveToday = _todayStatus?.hasLeaveToday ?? false;
+    final hasPendingReview = _todayStatus?.hasPendingReview ?? false;
+    final hasRejectedToday = _todayStatus?.hasRejectedToday ?? false;
 
-    // Alur logika tombol sesuai ketentuan:
-    // 1. Jika sudah izin hari ini:
-    //    - Tombol Clock In & Clock Out tidak bisa ditekan (Abu-abu / Disabled)
-    // 2. Belum Clock In (dan belum Izin):
-    //    - Tombol Clock In: Aktif (Hijau)
-    //    - Tombol Clock Out: Abu-abu (tidak bisa dipencet)
-    // 3. Sudah Clock In, belum Clock Out:
-    //    - Tombol Clock In: Abu-abu (tidak bisa dipencet)
-    //    - Tombol Clock Out: Aktif (Bisa dipencet)
-    // 4. Sudah Clock Out:
-    //    - Keduanya abu-abu (1x per hari)
-    final bool canClockIn = !hasClockedIn && !hasLeaveToday && !_isLoading;
+    // Alur logika tombol:
+    final bool canClockIn = !hasClockedIn && !hasLeaveToday && !hasPendingReview && !hasRejectedToday && !_isLoading;
     final bool canClockOut = hasClockedIn && !hasClockedOut && !hasLeaveToday && !_isLoading;
 
     return Scaffold(
@@ -641,7 +654,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
             onPressed: () async {
               await _fetchTodayStatus();
               _fetchQuickLocation();
-              if (!(_todayStatus?.hasClockedIn ?? false) && !(_todayStatus?.hasLeaveToday ?? false) && _cameraController == null) {
+              if (!(_todayStatus?.hasClockedIn ?? false) &&
+                  !(_todayStatus?.hasLeaveToday ?? false) &&
+                  !(_todayStatus?.hasPendingReview ?? false) &&
+                  !(_todayStatus?.hasRejectedToday ?? false) &&
+                  _cameraController == null) {
                 _initFrontCamera();
               }
             },
@@ -652,9 +669,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
         fit: StackFit.expand,
         children: [
           // ─── 1. BACKGROUND LAYER ───
-          // Sebelum Clock In & belum Izin dengan kamera aktif: FULL KAMERA
-          // Setelah Clock In / Izin atau jika kamera error/loading: Pakai wallpaper BG.png
-          if (!hasClockedIn && !hasLeaveToday && _isCameraInitialized && _cameraController != null && _cameraController!.value.isInitialized) ...[
+          // Sebelum Clock In & belum Izin/Pending/Ditolak dengan kamera aktif: FULL KAMERA
+          if (!hasClockedIn && !hasLeaveToday && !hasPendingReview && !hasRejectedToday && _isCameraInitialized && _cameraController != null && _cameraController!.value.isInitialized) ...[
             SizedBox.expand(
               child: FittedBox(
                 fit: BoxFit.cover,
@@ -901,6 +917,194 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                 ),
               ),
             )
+          else if (hasPendingReview)
+            // Tampilan Status saat menunggu review approval admin (Wajah Not Match)
+            Positioned.fill(
+              top: MediaQuery.of(context).padding.top + kToolbarHeight + 68,
+              bottom: 185,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.hourglass_top_rounded,
+                            color: Color(0xFFF59E0B),
+                            size: 36,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Menunggu Review Admin',
+                          style: TextStyle(
+                            color: Color(0xFF242721),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.access_time_rounded, size: 15, color: Color(0xFFD97706)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Clock In diajukan pukul ${_todayStatus?.pendingTime ?? "-"}',
+                                style: const TextStyle(color: Color(0xFFB45309), fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.25)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.face_retouching_off_rounded, size: 16, color: Color(0xFFD97706)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Verifikasi Wajah Not Match',
+                                style: TextStyle(color: Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Data presensi Anda sedang diverifikasi secara manual oleh admin. Jika disetujui, jam masuk Anda otomatis tercatat sesuai waktu saat pengambilan foto di tanggal ini.',
+                          style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.40),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (hasRejectedToday)
+            // Tampilan Status saat presensi ditolak admin (Terhitung Alpha)
+            Positioned.fill(
+              top: MediaQuery.of(context).padding.top + kToolbarHeight + 68,
+              bottom: 185,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.cancel_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 36,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Presensi Ditolak (Alpha)',
+                          style: TextStyle(
+                            color: Color(0xFF242721),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.report_problem_rounded, size: 15, color: Color(0xFFDC2626)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Status Hari Ini: Alpha',
+                                style: TextStyle(color: Color(0xFFDC2626), fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Presensi Anda hari ini telah ditolak oleh admin karena verifikasi wajah tidak cocok. Hari ini terhitung Alpha dan tidak masuk ke riwayat log absen.',
+                          style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.40),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
           else if (_cameraErrorMessage != null)
             Center(
               child: Container(
@@ -1101,10 +1305,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with WidgetsBinding
                               ? 'Sedang Izin'
                               : (hasClockedIn
                                   ? 'Pukul ${_todayStatus?.clockInTime ?? "Selesai"}'
-                                  : 'Absen Masuk'),
+                                  : (hasPendingReview
+                                      ? 'Menunggu Review'
+                                      : (hasRejectedToday ? 'Ditolak (Alpha)' : 'Absen Masuk'))),
                           icon: hasLeaveToday
                               ? Icons.event_busy_rounded
-                              : (hasClockedIn ? Icons.check_circle_rounded : Icons.login_rounded),
+                              : (hasClockedIn
+                                  ? Icons.check_circle_rounded
+                                  : (hasPendingReview
+                                      ? Icons.hourglass_top_rounded
+                                      : (hasRejectedToday ? Icons.cancel_rounded : Icons.login_rounded))),
                           isEnabled: canClockIn,
                           activeColor: const Color(0xFF10B981), // Emerald Green
                           onPressed: canClockIn

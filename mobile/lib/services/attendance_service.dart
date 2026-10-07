@@ -36,6 +36,9 @@ class TodayAttendanceStatus {
   final bool hasClockedOut;
   final String? clockInTime;
   final String? clockOutTime;
+  final bool hasPendingReview;
+  final String? pendingTime;
+  final bool hasRejectedToday;
   final bool hasLeaveToday;
   final String? leaveReason;
   final String? leaveStatus;
@@ -46,6 +49,9 @@ class TodayAttendanceStatus {
     required this.hasClockedOut,
     this.clockInTime,
     this.clockOutTime,
+    this.hasPendingReview = false,
+    this.pendingTime,
+    this.hasRejectedToday = false,
     this.hasLeaveToday = false,
     this.leaveReason,
     this.leaveStatus,
@@ -56,6 +62,7 @@ class TodayAttendanceStatus {
     final data = json['data'] as Map<String, dynamic>? ?? {};
     final clockIn = data['clockIn'] as Map<String, dynamic>?;
     final clockOut = data['clockOut'] as Map<String, dynamic>?;
+    final pending = data['pending'] as Map<String, dynamic>?;
     final todayLeave = data['todayLeave'] as Map<String, dynamic>?;
 
     String? formatTime(Map<String, dynamic>? record) {
@@ -80,6 +87,9 @@ class TodayAttendanceStatus {
       hasClockedOut: data['hasClockedOut'] == true,
       clockInTime: formatTime(clockIn),
       clockOutTime: formatTime(clockOut),
+      hasPendingReview: data['hasPendingReview'] == true || pending != null,
+      pendingTime: formatTime(pending),
+      hasRejectedToday: data['hasRejectedToday'] == true,
       hasLeaveToday: data['hasLeaveToday'] == true,
       leaveReason: todayLeave?['reason']?.toString(),
       leaveStatus: todayLeave?['status']?.toString(),

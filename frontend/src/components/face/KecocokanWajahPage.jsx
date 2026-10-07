@@ -4,26 +4,61 @@ import { getImageUrl } from '../../utils/imageUrl';
 
 export default function KecocokanWajahPage({ onBack, onLogout }) {
   const [faceLogs, setFaceLogs] = useState([]);
-  const [filterTab, setFilterTab] = useState('failed'); // 'failed' | 'all'
+  const [filterTab, setFilterTab] = useState('failed'); // 'failed' (Perlu Review) | 'all' (Semua Riwayat Log)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'pending' | 'approved' | 'rejected'
+  const [pageSize, setPageSize] = useState('10'); // '10' | '15' | '50' | '100' | '200' | '500' | 'all'
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
   const [selectedPhotoModal, setSelectedPhotoModal] = useState(null);
 
-  const isVerificationFailed = (status) => {
-    if (!status) return true;
-    const s = status.toLowerCase();
-    // Status absensi sukses / normal tidak perlu verifikasi manual
-    if (s === 'clock in' || s === 'clock out' || s === 'hadir' || s === 'izin') {
+  const isApproved = (status) => {
+    if (!status) return false;
+    const s = status.toLowerCase().trim();
+    return s === 'hadir' || s === 'match' || s === 'clock in' || s === 'disetujui';
+  };
+
+  const isRejected = (status) => {
+    if (!status) return false;
+    const s = status.toLowerCase().trim();
+    return (
+      s === 'wajah tidak cocok' ||
+      s === 'mismatch' ||
+      s === 'gagal verifikasi wajah' ||
+      s === 'ditolak'
+    );
+  };
+
+  // Hanya data not match yang belum direview yang tampil di tab "Perlu Review"
+  // Data yang sudah berstatus disetujui atau ditolak tidak akan ada di "Perlu Review"
+  const isPendingReview = (item) => {
+    if (!item) return false;
+    const s = (item.status || '').toLowerCase().trim();
+
+    // Data yang sudah berstatus disetujui -> TIDAK ADA di Perlu Review
+    if (isApproved(item.status)) {
       return false;
     }
-    // Status gagal, ditolak, mismatch, di luar radius, atau pending butuh verifikasi
+
+    // Data yang sudah berstatus ditolak -> TIDAK ADA di Perlu Review
+    if (isRejected(item.status)) {
+      return false;
+    }
+
+    // Status absensi non-review (clock out normal, izin, di luar radius) -> TIDAK ADA di Perlu Review
+    if (s === 'clock out' || s === 'izin' || s === 'di luar radius') {
+      return false;
+    }
+
+    // Sisanya adalah data not match yang belum direview (status 'pending', '', null, 'menunggu review', dll)
     return true;
   };
 
   const loadFaceLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetchAttendanceLogs({ limit: 100 });
+      const res = await fetchAttendanceLogs({ limit: 1000 });
       if (res && res.data) {
         setFaceLogs(res.data);
       } else {
@@ -46,6 +81,32 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
     setTimeout(() => setNotification(null), 3500);
   };
 
+  const handlePageSizeChange = (val) => {
+    setPageSize(val);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (val) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (val) => {
+    setStatusFilter(val);
+    setCurrentPage(1);
+    if (val === 'pending') {
+      setFilterTab('failed');
+    } else if (val === 'approved' || val === 'rejected') {
+      setFilterTab('all');
+    }
+  };
+
+  const handleTabChange = (tab) => {
+    setFilterTab(tab);
+    setStatusFilter('all');
+    setCurrentPage(1);
+  };
+
   const handleApprovalChange = async (id, newStatus) => {
     const target = faceLogs.find((l) => l.id === id);
     const name = target ? (target.user_name || 'Karyawan') : 'Karyawan';
@@ -56,6 +117,8 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
         ? 'Clock In'
         : newStatus === 'mismatch' || newStatus === 'Wajah Tidak Cocok'
         ? 'Wajah Tidak Cocok'
+        : newStatus === 'pending' || newStatus === 'Menunggu Review'
+        ? 'pending'
         : newStatus;
 
     // Simpan state sebelumnya untuk rollback jika API gagal
@@ -70,17 +133,17 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
       await updateAttendanceStatus(id, dbStatus, `Manual approval oleh admin (${dbStatus})`);
 
       // Reload data dari server untuk memastikan konsistensi saat kembali ke halaman
-      const res = await fetchAttendanceLogs({ limit: 100 });
+      const res = await fetchAttendanceLogs({ limit: 1000 });
       if (res && res.data) {
         setFaceLogs(res.data);
       }
 
       if (dbStatus === 'Clock In') {
-        showNotif('success', `Absensi ${name} telah disetujui manual (Status: Clock In).`);
+        showNotif('success', `Absensi ${name} telah disetujui (Clock In pada jam saat presensi dilakukan di tanggal yang sama).`);
       } else if (dbStatus === 'Wajah Tidak Cocok') {
-        showNotif('error', `Absensi ${name} ditolak (Status: Wajah Tidak Cocok).`);
+        showNotif('error', `Absensi ${name} ditolak (Terhitung Alpha & tidak masuk ke log absen).`);
       } else {
-        showNotif('info', `Status absensi ${name} diatur ke: ${dbStatus}.`);
+        showNotif('info', `Status absensi ${name} diatur ke: Menunggu Review.`);
       }
     } catch (err) {
       // Rollback state lokal jika API gagal
@@ -89,13 +152,6 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
       showNotif('error', `Gagal menyimpan perubahan status ${name}: ${err.message}`);
     }
   };
-
-  const isApproved = (status) => status === 'Hadir' || status === 'match' || status === 'Clock In';
-  const isRejected = (status) =>
-    status === 'Wajah Tidak Cocok' ||
-    status === 'mismatch' ||
-    status === 'Gagal Verifikasi Wajah' ||
-    status === 'Ditolak';
 
   const getSelectStyle = (status) => {
     if (isApproved(status)) {
@@ -114,7 +170,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
         fontWeight: 600,
       };
     }
-    // Default 'pending' / 'Di Luar Radius' / 'Pilih tindakan'
+    // Default 'pending' / 'Menunggu Review'
     return {
       background: '#ffffff',
       borderColor: '#cbd5e1',
@@ -123,10 +179,66 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
     };
   };
 
-  const failedCount = faceLogs.filter((item) => isVerificationFailed(item.status)).length;
-  const displayedLogs = filterTab === 'failed'
-    ? faceLogs.filter((item) => isVerificationFailed(item.status))
-    : faceLogs;
+  const pendingCount = faceLogs.filter((item) => isPendingReview(item)).length;
+
+  // Filter dipisah secara tegas: Tab "Perlu Review" vs Tab "Semua Riwayat Log"
+  const displayedLogs = faceLogs.filter((item) => {
+    // 1. Pemisahan Tab
+    if (filterTab === 'failed') {
+      // Tab Perlu Review: HANYA data not match yang belum direview
+      if (!isPendingReview(item)) return false;
+    } else {
+      // Tab Semua Riwayat Log: Tampilkan seluruh log dengan opsi filter status
+      if (statusFilter === 'pending') {
+        if (!isPendingReview(item)) return false;
+      } else if (statusFilter === 'approved') {
+        if (!isApproved(item.status)) return false;
+      } else if (statusFilter === 'rejected') {
+        if (!isRejected(item.status)) return false;
+      }
+    }
+
+    // 2. Pencarian (Nama, Username/Email, NIP, Status)
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const name = (item.user_name || '').toLowerCase();
+      const email = (item.user_email || item.email || '').toLowerCase();
+      const username = (item.username || '').toLowerCase();
+      const nip = (item.user_nip || '').toLowerCase();
+
+      // Cocokkan teks nama, email, username, NIP
+      const matchText =
+        name.includes(q) ||
+        email.includes(q) ||
+        username.includes(q) ||
+        nip.includes(q);
+
+      // Cocokkan status (disetujui, ditolak, pending) jika user mengetik kata kunci status
+      const matchStatus =
+        (q === 'pending' || q.includes('menunggu') || q.includes('review')) && isPendingReview(item) ||
+        (q.includes('setuju') || q.includes('disetujui') || q === 'hadir' || q.includes('clock in')) && isApproved(item.status) ||
+        (q.includes('tolak') || q.includes('ditolak') || q.includes('tidak cocok')) && isRejected(item.status);
+
+      if (!matchText && !matchStatus) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Logika Pagination & Limit (10, 15, 50, 100, 200, 500, all)
+  const isAll = pageSize === 'all';
+  const limit = isAll ? displayedLogs.length : parseInt(pageSize, 10);
+  const totalPages = isAll ? 1 : Math.max(1, Math.ceil(displayedLogs.length / (limit || 1)));
+  const validPage = Math.min(Math.max(currentPage, 1), totalPages);
+
+  const startIndex = isAll ? (displayedLogs.length > 0 ? 1 : 0) : displayedLogs.length === 0 ? 0 : (validPage - 1) * limit + 1;
+  const endIndex = isAll ? displayedLogs.length : Math.min(validPage * limit, displayedLogs.length);
+
+  const paginatedLogs = isAll
+    ? displayedLogs
+    : displayedLogs.slice((validPage - 1) * limit, validPage * limit);
 
   return (
     <div style={styles.wrapper}>
@@ -208,15 +320,95 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
               </svg>
             </div>
             <div>
-              <h2 style={styles.pageTitle}>Kecocokan Wajah</h2>
-              <p style={styles.pageSubtitle}>Daftar absensi yang gagal verifikasi wajah atau memerlukan review manual admin</p>
+              <h2 style={styles.pageTitle}>Approval Not Match</h2>
+              <p style={styles.pageSubtitle}>
+                {searchQuery.trim() || (filterTab === 'all' && statusFilter !== 'all')
+                  ? `Ditemukan ${displayedLogs.length} dari ${faceLogs.length} data absensi`
+                  : filterTab === 'failed'
+                  ? `Menampilkan ${displayedLogs.length} data absensi yang memerlukan review manual admin`
+                  : `Daftar seluruh riwayat log absensi karyawan (${faceLogs.length} total)`}
+              </p>
             </div>
           </div>
+        </div>
 
-          {/* Filter Tabs */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* Toolbar: Limit, Search, Status Filter & Tabs */}
+        <div style={styles.toolbar}>
+          {/* Limit Selector */}
+          <div style={styles.limitBox}>
+            <span style={styles.limitLabel}>Tampilkan:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => handlePageSizeChange(e.target.value)}
+              style={styles.limitSelect}
+              aria-label="Pilih jumlah data per halaman"
+            >
+              <option value="10">10 data</option>
+              <option value="15">15 data</option>
+              <option value="50">50 data</option>
+              <option value="100">100 data</option>
+              <option value="200">200 data</option>
+              <option value="500">500 data</option>
+              <option value="all">Semua (All)</option>
+            </select>
+          </div>
+
+          {/* Search Box */}
+          <div style={styles.searchBox}>
+            <span style={styles.searchIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Cari nama, email, status..."
+              style={styles.searchInput}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = '#1e5a8a';
+                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(30, 90, 138, 0.12)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = '#d1d9e6';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange('')}
+                style={styles.clearSearchBtn}
+                title="Hapus pencarian"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Status Filter Dropdown (Tampil khusus saat di tab Semua Riwayat Log) */}
+          {filterTab === 'all' && (
+            <div style={styles.statusFilterBox}>
+              <span style={styles.statusFilterLabel}>Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => handleStatusFilterChange(e.target.value)}
+                style={styles.statusFilterSelect}
+              >
+                <option value="all">Semua Status</option>
+                <option value="pending">Menunggu Review (Pending)</option>
+                <option value="approved">Disetujui (Clock In)</option>
+                <option value="rejected">Ditolak (Wajah Tidak Cocok)</option>
+              </select>
+            </div>
+          )}
+
+          {/* Filter Tabs (Perlu Review dipisah tegas dari Semua Riwayat Log) */}
+          <div style={styles.tabsWrapper}>
             <button
-              onClick={() => setFilterTab('failed')}
+              onClick={() => handleTabChange('failed')}
               style={{
                 padding: '8px 16px',
                 borderRadius: 8,
@@ -232,8 +424,8 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                 transition: 'all 0.2s',
               }}
             >
-              <span>Perlu Review / Gagal</span>
-              {failedCount > 0 && (
+              <span>Perlu Review</span>
+              {pendingCount > 0 && (
                 <span style={{
                   background: '#ef4444',
                   color: 'white',
@@ -242,12 +434,12 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   fontSize: 11,
                   fontWeight: 700,
                 }}>
-                  {failedCount}
+                  {pendingCount}
                 </span>
               )}
             </button>
             <button
-              onClick={() => setFilterTab('all')}
+              onClick={() => handleTabChange('all')}
               style={{
                 padding: '8px 16px',
                 borderRadius: 8,
@@ -286,7 +478,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                       <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>Memuat data verifikasi wajah...</span>
                     </td>
                   </tr>
-                ) : displayedLogs.length === 0 ? (
+                ) : paginatedLogs.length === 0 ? (
                   <tr>
                     <td colSpan="5" style={styles.emptyCell}>
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -296,26 +488,52 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                         <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
                       </svg>
                       <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>
-                        {filterTab === 'failed'
-                          ? 'Tidak ada absensi yang gagal verifikasi wajah / perlu review.'
-                          : 'Belum ada log verifikasi wajah'}
+                        {searchQuery.trim() || statusFilter !== 'all'
+                          ? `Tidak ada data yang sesuai dengan filter pencarian.`
+                          : filterTab === 'failed'
+                          ? 'Tidak ada data not match yang perlu review.'
+                          : 'Belum ada log verifikasi wajah.'}
                       </span>
+                      {(searchQuery.trim() || statusFilter !== 'all') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setStatusFilter('all');
+                            setCurrentPage(1);
+                          }}
+                          style={{
+                            marginTop: 10,
+                            padding: '6px 14px',
+                            background: '#eff6ff',
+                            color: '#1e5a8a',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Reset Pencarian & Filter
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
-                  displayedLogs.map((item, index) => {
+                  paginatedLogs.map((item, index) => {
                     const selectStyle = getSelectStyle(item.status);
+                    const rowNumber = isAll ? index + 1 : (validPage - 1) * limit + index + 1;
 
                     return (
                       <tr
-                        key={item.id || index}
+                        key={item.id || `${item.user_id}-${index}`}
                         style={styles.tableRow}
                         onMouseEnter={(e) => (e.currentTarget.style.background = '#f9fafb')}
                         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                       >
                         {/* NO */}
                         <td style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>
-                          {index + 1}
+                          {rowNumber}
                         </td>
 
                         {/* NAMA */}
@@ -326,7 +544,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                         {/* USERNAME */}
                         <td style={styles.td}>
                           <span style={styles.usernameBadge}>
-                            {item.username || item.user_name.toLowerCase().replace(/\s+/g, '.')}
+                            {item.user_email || item.email || item.username || item.user_name}
                           </span>
                         </td>
 
@@ -396,6 +614,56 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
               </tbody>
             </table>
           </div>
+
+          {/* Table Footer: Info Jumlah Data & Pagination Controls */}
+          <div style={styles.tableFooter}>
+            <div style={styles.footerInfo}>
+              Menampilkan <span style={{ fontWeight: 600, color: '#1e293b' }}>{displayedLogs.length === 0 ? 0 : `${startIndex} - ${endIndex}`}</span> dari <span style={{ fontWeight: 600, color: '#1e293b' }}>{displayedLogs.length}</span> data {filterTab === 'failed' ? '(Perlu Review)' : '(Semua Riwayat)'}
+              {faceLogs.length !== displayedLogs.length && ` • Total keseluruhan: ${faceLogs.length} log`}
+            </div>
+
+            {!isAll && totalPages > 1 && (
+              <div style={styles.paginationControls}>
+                <button
+                  type="button"
+                  disabled={validPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  style={{
+                    ...styles.pageBtn,
+                    opacity: validPage <= 1 ? 0.45 : 1,
+                    cursor: validPage <= 1 ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Halaman Sebelumnya"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  <span>Prev</span>
+                </button>
+
+                <div style={styles.pageIndicator}>
+                  Halaman <strong style={{ color: '#1e5a8a' }}>{validPage}</strong> dari <strong>{totalPages}</strong>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={validPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  style={{
+                    ...styles.pageBtn,
+                    opacity: validPage >= totalPages ? 0.45 : 1,
+                    cursor: validPage >= totalPages ? 'not-allowed' : 'pointer',
+                  }}
+                  title="Halaman Selanjutnya"
+                >
+                  <span>Next</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
@@ -415,7 +683,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                 </div>
                 <div>
                   <h3 style={styles.modalTitle}>Verifikasi Manual Kecocokan Wajah</h3>
-                  <p style={styles.modalSubtitle}>{selectedPhotoModal.user_name} ({selectedPhotoModal.user_nip || selectedPhotoModal.username || 'Karyawan'})</p>
+                  <p style={styles.modalSubtitle}>{selectedPhotoModal.user_name} ({selectedPhotoModal.user_email || selectedPhotoModal.email || selectedPhotoModal.user_nip || 'Karyawan'})</p>
                 </div>
               </div>
               <button
@@ -445,7 +713,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   <line x1="12" y1="16" x2="12" y2="12" />
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
-                <span>Bandingkan foto master pendaftaran dengan foto selfie saat absen. Anda dapat menyetujui absensi secara manual jika wajah terbukti sesuai.</span>
+                <span>Bandingkan foto master pendaftaran dengan foto selfie saat absen. Jika disetujui, absensi akan otomatis berstatus Clock In pada jam saat presensi dilakukan dari mobile di tanggal yang sama. Jika ditolak, absensi terhitung Alpha dan tidak masuk ke log absen.</span>
               </div>
 
               {/* Dua Kolom Foto Komparasi */}
@@ -525,6 +793,9 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   <div style={styles.photoCaption}>
                     Diambil: {selectedPhotoModal.created_at ? new Date(selectedPhotoModal.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace('.', ':') : '-'} ({selectedPhotoModal.type === 'out' ? 'Clock Out' : 'Clock In'})
                   </div>
+                  <div style={styles.photoDateCaption}>
+                    pada tanggal {selectedPhotoModal.created_at ? new Date(selectedPhotoModal.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' }) : '-'}
+                  </div>
                 </div>
               </div>
 
@@ -534,7 +805,11 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   <div>
                     <span style={styles.scoreLabel}>Status Kehadiran Saat Ini:</span>
                     <h4 style={styles.scoreTitle}>
-                      {selectedPhotoModal.status || 'Menunggu Review'}
+                      {isApproved(selectedPhotoModal.status)
+                        ? 'Disetujui (Clock In)'
+                        : isRejected(selectedPhotoModal.status)
+                        ? 'Ditolak (Wajah Tidak Cocok)'
+                        : 'Menunggu Review'}
                     </h4>
                   </div>
                   <div
@@ -548,7 +823,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                     {isApproved(selectedPhotoModal.status)
                       ? '✓ Hadir (Disetujui)'
                       : isRejected(selectedPhotoModal.status)
-                      ? '✕ Wajah Tidak Cocok'
+                      ? '✕ Ditolak (Wajah Tidak Cocok)'
                       : 'Menunggu Approval Admin'}
                   </div>
                 </div>
@@ -566,7 +841,7 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   }}
                   style={styles.modalBtnMatch}
                 >
-                  ✓ Setujui Manual (Jadikan Clock In)
+                  ✓ Setujui (Clock In pada Jam Presensi)
                 </button>
                 <button
                   onClick={() => {
@@ -575,12 +850,20 @@ export default function KecocokanWajahPage({ onBack, onLogout }) {
                   }}
                   style={styles.modalBtnMismatch}
                 >
-                  ✕ Tolak (Wajah Tidak Cocok)
+                  ✕ Tolak (Terhitung Alpha & Tidak Masuk Log Absen)
                 </button>
               </div>
               <button
                 onClick={() => setSelectedPhotoModal(null)}
                 style={styles.modalBtnClose}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f1f5f9';
+                  e.currentTarget.style.borderColor = '#94a3b8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#ffffff';
+                  e.currentTarget.style.borderColor = '#cbd5e1';
+                }}
               >
                 Tutup
               </button>
@@ -745,6 +1028,121 @@ const styles = {
     margin: '3px 0 0',
     fontWeight: 400,
   },
+  toolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+    flexWrap: 'wrap',
+  },
+  limitBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: '#ffffff',
+    border: '1.5px solid #d1d9e6',
+    borderRadius: 10,
+    padding: '5px 12px',
+    height: 42,
+    boxSizing: 'border-box',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+  },
+  limitLabel: {
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#64748b',
+    whiteSpace: 'nowrap',
+  },
+  limitSelect: {
+    border: 'none',
+    background: 'transparent',
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    cursor: 'pointer',
+    outline: 'none',
+    fontFamily: 'inherit',
+    padding: '2px 0',
+  },
+  searchBox: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    minWidth: 260,
+    flex: '1 1 260px',
+    maxWidth: 360,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    display: 'flex',
+    alignItems: 'center',
+    pointerEvents: 'none',
+    color: '#64748b',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '9px 34px 9px 36px',
+    borderRadius: 10,
+    border: '1.5px solid #d1d9e6',
+    fontSize: 13,
+    color: '#1a1a2e',
+    outline: 'none',
+    background: '#ffffff',
+    transition: 'all 0.18s ease',
+    fontFamily: 'inherit',
+    height: 42,
+    boxSizing: 'border-box',
+  },
+  clearSearchBtn: {
+    position: 'absolute',
+    right: 10,
+    background: '#e2e8f0',
+    border: 'none',
+    borderRadius: '50%',
+    width: 18,
+    height: 18,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 10,
+    color: '#64748b',
+    cursor: 'pointer',
+    padding: 0,
+    transition: 'all 0.15s ease',
+  },
+  statusFilterBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: '#ffffff',
+    padding: '5px 12px',
+    borderRadius: 10,
+    border: '1.5px solid #d1d9e6',
+    height: 42,
+    boxSizing: 'border-box',
+  },
+  statusFilterLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#64748b',
+  },
+  statusFilterSelect: {
+    border: 'none',
+    outline: 'none',
+    fontSize: 13,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    background: 'transparent',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  tabsWrapper: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
   tableCard: {
     background: '#ffffff',
     borderRadius: 16,
@@ -754,6 +1152,45 @@ const styles = {
   },
   tableScroll: {
     overflowX: 'auto',
+  },
+  tableFooter: {
+    padding: '14px 20px',
+    background: '#f8fafc',
+    borderTop: '1px solid #e8ecf1',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  footerInfo: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  paginationControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pageBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '6px 12px',
+    fontSize: 12.5,
+    fontWeight: 600,
+    color: '#1e5a8a',
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    fontFamily: 'inherit',
+  },
+  pageIndicator: {
+    fontSize: 12.5,
+    color: '#64748b',
+    padding: '0 6px',
   },
   table: {
     width: '100%',
@@ -876,7 +1313,7 @@ const styles = {
     background: '#ffffff',
     borderRadius: 16,
     width: '100%',
-    maxWidth: 580,
+    maxWidth: 640,
     boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
     overflow: 'hidden',
     animation: 'fadeInUp 0.25s ease-out',
@@ -972,6 +1409,12 @@ const styles = {
     color: '#64748b',
     marginTop: 8,
   },
+  photoDateCaption: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 3,
+    fontWeight: 500,
+  },
   scoreBox: {
     marginTop: 18,
     background: '#f8fafc',
@@ -1009,11 +1452,12 @@ const styles = {
     lineHeight: 1.4,
   },
   modalFooter: {
-    padding: '14px 24px',
+    padding: '16px 24px',
     borderTop: '1px solid #f1f5f9',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 16,
     background: '#f8fafc',
   },
   modalBtnMatch: {
@@ -1039,7 +1483,7 @@ const styles = {
     transition: 'all 0.15s ease',
   },
   modalBtnClose: {
-    padding: '8px 16px',
+    padding: '8px 18px',
     background: '#ffffff',
     color: '#64748b',
     border: '1px solid #cbd5e1',
@@ -1047,5 +1491,8 @@ const styles = {
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
+    marginLeft: 16,
+    flexShrink: 0,
+    transition: 'all 0.15s ease',
   },
 };

@@ -2,38 +2,29 @@ const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendanceController');
 const { authMiddleware, adminOnly } = require('../middlewares/authMiddleware');
-const { uploadAttendance } = require('../config/multer');
 
 /**
- * Routes Absensi
- *
- * POST   /api/attendance          - Submit absensi (user, upload foto + GPS)
- * GET    /api/attendance          - Ambil semua log absensi (admin only)
- * GET    /api/attendance/history  - Riwayat absensi user yang login
- * GET    /api/attendance/:id      - Detail absensi berdasarkan ID
+ * Routes Absensi:
+ * POST   /api/attendance          - Submit absensi (Clock In / Clock Out, tanpa AI & tanpa lokasi)
+ * GET    /api/attendance          - Ambil semua log absensi (admin web only)
+ * GET    /api/attendance/history  - Riwayat absensi user yang login (mobile)
+ * GET    /api/attendance/today    - Status absensi hari ini (Clock In & Clock Out)
+ * GET    /api/attendance/:id      - Detail absensi
  */
 
-// Submit absensi - User mengirim foto wajah + koordinat GPS
-router.post(
-  '/',
-  authMiddleware,
-  uploadAttendance.single('photo'),
-  attendanceController.submitAttendance
-);
+// Submit absensi - User menekan tombol Clock In atau Clock Out
+router.post('/', authMiddleware, attendanceController.submitAttendance);
 
-// Riwayat absensi user yang sedang login
+// Riwayat absensi user yang sedang login (mobile)
 router.get('/history', authMiddleware, attendanceController.getMyHistory);
 
-// Semua log absensi (admin only)
+// Semua log absensi (admin web: hanya melihat log absen)
 router.get('/', authMiddleware, adminOnly, attendanceController.getAllAttendance);
 
-// Status absensi hari ini (Clock In & Clock Out) user yang login
+// Status absensi hari ini
 router.get('/today', authMiddleware, attendanceController.getTodayStatus);
 
-// Detail absensi (user bisa lihat milik sendiri, admin bisa lihat semua)
+// Detail absensi
 router.get('/:id', authMiddleware, attendanceController.getAttendanceById);
-
-// Update status verifikasi absensi / kecocokan wajah (admin only)
-router.patch('/:id/status', authMiddleware, adminOnly, attendanceController.updateStatus);
 
 module.exports = router;

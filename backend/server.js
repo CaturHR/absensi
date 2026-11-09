@@ -8,20 +8,14 @@ const fs = require('fs');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
+const { syncDatabase } = require('./config/syncDatabase');
 const errorHandler = require('./middlewares/errorHandler');
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
-const locationRoutes = require('./routes/locationRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const galleryRoutes = require('./routes/galleryRoutes');
-
-// Import Models (for auto table creation)
-const LeaveRequest = require('./models/LeaveRequest');
-const Gallery = require('./models/Gallery');
 
 // ──────────────────────────────────────────────
 // Inisialisasi Express App
@@ -34,10 +28,7 @@ const PORT = process.env.PORT || 5000;
 // ──────────────────────────────────────────────
 const uploadDirs = [
   path.join(__dirname, 'uploads'),
-  path.join(__dirname, 'uploads', 'attendance'),
-  path.join(__dirname, 'uploads', 'faces'),
   path.join(__dirname, 'uploads', 'leaves'),
-  path.join(__dirname, 'uploads', 'gallery'),
 ];
 
 uploadDirs.forEach((dir) => {
@@ -50,13 +41,10 @@ uploadDirs.forEach((dir) => {
 // ──────────────────────────────────────────────
 // Security Middlewares
 // ──────────────────────────────────────────────
-
-// Helmet - HTTP security headers
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Untuk akses file uploads dari frontend
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS - Konfigurasi cross-origin
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? process.env.CORS_ORIGIN || 'http://localhost:3000'
@@ -66,13 +54,13 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate Limiting - Batasi jumlah request per IP
+// Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 menit
-  max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 1000, // 1000 request per 15 menit
+  windowMs: 15 * 60 * 1000,
+  max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 1000,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.method === 'OPTIONS' || req.path === '/health', // Lewati preflight dan healthcheck
+  skip: (req) => req.method === 'OPTIONS' || req.path === '/health',
   message: {
     success: false,
     message: 'Terlalu banyak permintaan dari IP ini. Silakan coba lagi setelah beberapa menit.',
@@ -80,30 +68,12 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Rate limiter khusus untuk login (proteksi brute force)
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 menit
-  max: 15, // 15 percobaan login per 15 menit
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Terlalu banyak percobaan login yang gagal. Silakan coba lagi setelah 15 menit.',
-  },
-});
-app.use('/api/auth/login', loginLimiter);
-
 // ──────────────────────────────────────────────
 // Body Parsing & Logging
 // ──────────────────────────────────────────────
-
-// Parse JSON body
 app.use(express.json({ limit: '10mb' }));
-
-// Parse URL-encoded body
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// HTTP request logging (dev mode)
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 } else {
@@ -111,13 +81,10 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ──────────────────────────────────────────────
-// Static Files - Serve uploaded files
+// Static Files
 // ──────────────────────────────────────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/faces', express.static(path.join(__dirname, 'uploads', 'faces')));
-app.use('/attendance', express.static(path.join(__dirname, 'uploads', 'attendance')));
 app.use('/leaves', express.static(path.join(__dirname, 'uploads', 'leaves')));
-app.use('/gallery', express.static(path.join(__dirname, 'uploads', 'gallery')));
 
 // ──────────────────────────────────────────────
 // API Routes
@@ -125,14 +92,9 @@ app.use('/gallery', express.static(path.join(__dirname, 'uploads', 'gallery')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/locations', locationRoutes);
 app.use('/api/leaves', leaveRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/gallery', galleryRoutes);
 
-// ──────────────────────────────────────────────
 // Health Check
-// ──────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -142,9 +104,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ──────────────────────────────────────────────
 // 404 Handler
-// ──────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -152,9 +112,7 @@ app.use((req, res) => {
   });
 });
 
-// ──────────────────────────────────────────────
 // Global Error Handler
-// ──────────────────────────────────────────────
 app.use(errorHandler);
 
 // ──────────────────────────────────────────────
@@ -165,21 +123,8 @@ const startServer = async () => {
     // Test koneksi database
     await testConnection();
 
-    // Auto-create leave_requests table if not exists
-    try {
-      await LeaveRequest.createTable();
-      console.log('✅ Tabel leave_requests siap.');
-    } catch (err) {
-      console.error('⚠️ Gagal membuat tabel leave_requests:', err.message);
-    }
-
-    // Auto-create galleries table if not exists
-    try {
-      await Gallery.createTable();
-      console.log('✅ Tabel galleries siap.');
-    } catch (err) {
-      console.error('⚠️ Gagal membuat tabel galleries:', err.message);
-    }
+    // Sinkronisasi skema database (hanya 3 tabel: users, attendance_logs, leave_requests)
+    await syncDatabase();
 
     // Jalankan Auto Clock Out untuk presensi hari-hari sebelumnya yang belum di-clock out
     const Attendance = require('./models/Attendance');
@@ -207,11 +152,21 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log('══════════════════════════════════════════');
       console.log(`🚀 Server berjalan di port ${PORT} (0.0.0.0)`);
-      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`📡 API URL: http://localhost:${PORT}/api`);
-      console.log(`📱 Akses dari HP (WiFi): http://192.168.0.233:${PORT}/api`);
       console.log(`💾 Health Check: http://localhost:${PORT}/api/health`);
       console.log('══════════════════════════════════════════');
+
+      // Otomatis aktifkan ADB reverse port agar HP Android langsung bisa terhubung via USB
+      const maintainAdbReverse = () => {
+        try {
+          const { exec } = require('child_process');
+          exec(`adb reverse tcp:${PORT} tcp:${PORT}`, (err) => {
+            // Berjalan tanpa error jika device terhubung via USB
+          });
+        } catch (_) {}
+      };
+      maintainAdbReverse();
+      setInterval(maintainAdbReverse, 5000);
     });
   } catch (error) {
     console.error('❌ Gagal memulai server:', error.message);

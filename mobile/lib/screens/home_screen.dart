@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import '../widgets/liquid_glass.dart';
-import 'photo_gallery_screen.dart';
 
-/// Halaman Beranda - Menu utama dengan pilihan Absen, Izin, Galeri, dan About Poca
+/// Halaman Beranda - Menu navigasi utama: Absen, Izin, dan Riwayat
 class HomeScreen extends StatelessWidget {
-  final List<CameraDescription> cameras;
   final void Function(int index)? onSwitchTab;
 
-  const HomeScreen({super.key, required this.cameras, this.onSwitchTab});
+  const HomeScreen({super.key, this.onSwitchTab});
 
   @override
   Widget build(BuildContext context) {
@@ -22,12 +19,11 @@ class HomeScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background image sama dengan halaman lainnya
+          // Background image
           Image.asset(
             'lib/asset/baground/BG.png',
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) =>
-                Container(color: const Color(0xFF365C4A)),
+            errorBuilder: (_, __, ___) => Container(color: const Color(0xFF365C4A)),
           ),
           Container(
             decoration: BoxDecoration(
@@ -66,8 +62,7 @@ class HomeScreen extends StatelessWidget {
                           offset: const Offset(0, 4),
                         ),
                       ],
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.8)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                     ),
                     child: Row(
                       children: [
@@ -75,8 +70,7 @@ class HomeScreen extends StatelessWidget {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF365C4A)
-                                .withValues(alpha: 0.15),
+                            color: const Color(0xFF365C4A).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
@@ -115,89 +109,41 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 20),
 
-                  // ─── Grid Menu 2x2 ───
-                  // Baris 1: [ Absen ]       [ Izin ]
-                  // Baris 2: [ Galeri ]      [ About Poca ]
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 0.82,
+                  // Menu Cards: Absen, Izin, Riwayat
+                  Column(
                     children: [
                       // 1. Menu Absen
-                      _buildMenuCard(
+                      _buildFullMenuCard(
                         context: context,
-                        title: 'Absen',
-                        subtitle: 'Presensi Masuk & Pulang',
+                        title: 'Presensi Absen',
+                        subtitle: 'Clock In (Masuk) & Clock Out (Pulang)',
                         icon: Icons.fingerprint_rounded,
-                        gradientColors: const [
-                          Color(0xFF10B981),
-                          Color(0xFF059669),
-                        ],
-                        onTap: () {
-                          onSwitchTab?.call(1);
-                        },
+                        gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
+                        onTap: () => onSwitchTab?.call(1),
                       ),
+
+                      const SizedBox(height: 14),
 
                       // 2. Menu Izin
-                      _buildMenuCard(
+                      _buildFullMenuCard(
                         context: context,
-                        title: 'Izin',
-                        subtitle: 'Pengajuan Izin Kerja',
+                        title: 'Pengajuan Izin',
+                        subtitle: 'Form permohonan izin kerja & lampiran',
                         icon: Icons.description_rounded,
-                        gradientColors: const [
-                          Color(0xFF6366F1),
-                          Color(0xFF4F46E5),
-                        ],
-                        onTap: () {
-                          onSwitchTab?.call(2);
-                        },
+                        gradientColors: const [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                        onTap: () => onSwitchTab?.call(2),
                       ),
 
-                      // 3. Menu Galeri (di bawah Absen)
-                      _buildMenuCard(
-                        context: context,
-                        title: 'Galeri',
-                        subtitle: 'Foto & Dokumentasi',
-                        icon: Icons.photo_library_rounded,
-                        gradientColors: const [
-                          Color(0xFFF59E0B),
-                          Color(0xFFD97706),
-                        ],
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PhotoGalleryScreen(
-                                title: 'Galeri',
-                                category: 'galeri',
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      const SizedBox(height: 14),
 
-                      // 4. Menu About Poca (di sebelah Galeri, di bawah Izin)
-                      _buildMenuCard(
+                      // 3. Menu Riwayat Absen
+                      _buildFullMenuCard(
                         context: context,
-                        title: 'About Poca',
-                        subtitle: 'Profil & Dokumentasi',
-                        icon: Icons.business_rounded,
-                        gradientColors: const [
-                          Color(0xFF0EA5E9),
-                          Color(0xFF0284C7),
-                        ],
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PhotoGalleryScreen(
-                                title: 'About Poca',
-                                category: 'about',
-                              ),
-                            ),
-                          );
-                        },
+                        title: 'Riwayat Absensi',
+                        subtitle: 'Daftar riwayat Clock In, Clock Out, dan Izin',
+                        icon: Icons.history_rounded,
+                        gradientColors: const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                        onTap: () => onSwitchTab?.call(3),
                       ),
                     ],
                   ),
@@ -212,8 +158,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Card Menu Navigasi (Absen, Izin, Galeri, About Poca) dengan tampilan seragam
-  Widget _buildMenuCard({
+  Widget _buildFullMenuCard({
     required BuildContext context,
     required String title,
     required String subtitle,
@@ -227,7 +172,8 @@ class HomeScreen extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(22),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.94),
             borderRadius: BorderRadius.circular(22),
@@ -240,61 +186,56 @@ class HomeScreen extends StatelessWidget {
             ],
             border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
             children: [
-              // Icon Circle with Gradient
               Container(
-                width: 54,
-                height: 54,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
+                    colors: gradientColors,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: gradientColors,
                   ),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
                       color: gradientColors[0].withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 28,
+                child: Icon(icon, color: Colors.white, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-
-              // Title
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF242721),
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-
-              // Subtitle
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.black54,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: Colors.black38,
               ),
             ],
           ),

@@ -3,6 +3,6 @@ import 'package:absensi_mobile/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const AbsensiApp(cameras: []));
+    await tester.pumpWidget(const AbsensiApp());
   });
 }

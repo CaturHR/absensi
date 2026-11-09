@@ -10,9 +10,9 @@ import '../services/auth_service.dart';
 /// Splash screen pembuka aplikasi yang memutar video animasi selama 2 detik
 /// sebelum berpindah ke halaman utama (jika sudah login) atau halaman login.
 class SplashScreen extends StatefulWidget {
-  final List<CameraDescription> cameras;
+  final List<CameraDescription>? cameras;
 
-  const SplashScreen({super.key, required this.cameras});
+  const SplashScreen({super.key, this.cameras});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -91,9 +91,9 @@ class _SplashScreenState extends State<SplashScreen> {
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
           if (loggedIn) {
-            return MainNavigationWrapper(cameras: widget.cameras);
+            return const MainNavigationWrapper();
           } else {
-            return LoginScreen(cameras: widget.cameras);
+            return const LoginScreen();
           }
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

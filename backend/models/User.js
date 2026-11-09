@@ -11,22 +11,20 @@ const User = {
    */
   findById: async (id) => {
     const [rows] = await pool.execute(
-      'SELECT id, name, email, nip, role, divisi, face_photo, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, name, email, nip, role, divisi, created_at, updated_at FROM users WHERE id = ?',
       [id]
     );
     return rows[0] || null;
   },
 
   /**
-   * Cari user berdasarkan email atau nama pengguna (mendukung tanpa @gmail.com).
+   * Cari user berdasarkan email atau username.
    * @param {string} email
    * @returns {Promise<object|null>}
    */
   findByEmail: async (email) => {
     if (!email) return null;
     const trimmed = email.trim();
-    // Jika input berakhiran @gmail.com, buat versi tanpa @gmail.com
-    // Jika input tidak mengandung @, buat versi dengan @gmail.com
     const withoutGmail = trimmed.toLowerCase().endsWith('@gmail.com')
       ? trimmed.slice(0, -10)
       : trimmed;
@@ -55,27 +53,27 @@ const User = {
   },
 
   /**
-   * Ambil semua user (untuk admin).
+   * Ambil semua user (untuk admin web).
    * @returns {Promise<Array>}
    */
   findAll: async () => {
     const [rows] = await pool.execute(
-      'SELECT id, name, email, nip, role, divisi, face_photo, created_at, updated_at FROM users ORDER BY created_at DESC'
+      'SELECT id, name, email, nip, role, divisi, created_at, updated_at FROM users ORDER BY id ASC'
     );
     return rows;
   },
 
   /**
    * Buat user baru.
-   * @param {object} userData - { name, email, nip, password, role, face_photo }
+   * @param {object} userData - { name, email, nip, password, role, divisi }
    * @returns {Promise<object>}
    */
-  create: async ({ name, email, nip, password, role = 'user', divisi = null, face_photo = null }) => {
+  create: async ({ name, email, nip, password, role = 'user', divisi = null }) => {
     const [result] = await pool.execute(
-      'INSERT INTO users (name, email, nip, password, role, divisi, face_photo) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, email, nip, password, role, divisi, face_photo]
+      'INSERT INTO users (name, email, nip, password, role, divisi) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, nip, password, role, divisi]
     );
-    return { id: result.insertId, name, email, nip, role, divisi, face_photo };
+    return { id: result.insertId, name, email, nip, role, divisi };
   },
 
   /**
@@ -89,7 +87,7 @@ const User = {
     const values = [];
 
     Object.entries(data).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && key !== 'face_photo') {
         fields.push(`${key} = ?`);
         values.push(value);
       }
@@ -115,19 +113,6 @@ const User = {
   delete: async (id) => {
     const [result] = await pool.execute('DELETE FROM users WHERE id = ?', [id]);
     return result;
-  },
-
-  /**
-   * Ambil path foto master wajah user.
-   * @param {number} userId
-   * @returns {Promise<string|null>}
-   */
-  getFacePhoto: async (userId) => {
-    const [rows] = await pool.execute(
-      'SELECT face_photo FROM users WHERE id = ?',
-      [userId]
-    );
-    return rows[0] ? rows[0].face_photo : null;
   },
 };
 

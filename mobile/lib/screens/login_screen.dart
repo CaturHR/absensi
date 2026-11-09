@@ -1,12 +1,15 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:http/http.dart' as http;
+import '../config/api_constants.dart';
 import '../services/auth_service.dart';
 import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
-  final List<CameraDescription> cameras;
+  final List<CameraDescription>? cameras;
 
-  const LoginScreen({super.key, required this.cameras});
+  const LoginScreen({super.key, this.cameras});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -26,6 +29,195 @@ class _LoginScreenState extends State<LoginScreen> {
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _showServerSettings() {
+    final controller = TextEditingController(text: ApiConstants.baseUrl);
+    String? testStatus;
+    bool isTesting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.dns_outlined, color: Color(0xFF365C4A)),
+              SizedBox(width: 8),
+              Text(
+                'Pengaturan Server Backend',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih preset koneksi lokal atau masukkan URL manual:',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ActionChip(
+                      label: const Text('USB ADB (127.0.0.1) ⭐', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      avatar: const Icon(Icons.usb, size: 14),
+                      onPressed: () {
+                        setDialogState(() {
+                          controller.text = 'http://127.0.0.1:5000';
+                          testStatus = null;
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('Emulator (10.0.2.2)', style: TextStyle(fontSize: 11)),
+                      avatar: const Icon(Icons.phone_android, size: 14),
+                      onPressed: () {
+                        setDialogState(() {
+                          controller.text = 'http://10.0.2.2:5000';
+                          testStatus = null;
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      label: const Text('Localhost (5000)', style: TextStyle(fontSize: 11)),
+                      avatar: const Icon(Icons.laptop, size: 14),
+                      onPressed: () {
+                        setDialogState(() {
+                          controller.text = 'http://localhost:5000';
+                          testStatus = null;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'URL Server Backend',
+                    hintText: 'http://127.0.0.1:5000',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: isTesting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.network_check, size: 16),
+                      label: const Text('Cek Koneksi', style: TextStyle(fontSize: 12)),
+                      onPressed: isTesting
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isTesting = true;
+                                testStatus = null;
+                              });
+                              try {
+                                final clean = controller.text.trim().replaceAll(RegExp(r'/+$'), '');
+                                final res = await http
+                                    .get(Uri.parse('$clean/api/health'))
+                                    .timeout(const Duration(seconds: 3));
+                                setDialogState(() {
+                                  isTesting = false;
+                                  testStatus = res.statusCode == 200
+                                      ? '✅ Terhubung! Server aktif.'
+                                      : '⚠️ Respon kode: ${res.statusCode}';
+                                });
+                              } catch (e) {
+                                setDialogState(() {
+                                  isTesting = false;
+                                  testStatus = '❌ Gagal: $e';
+                                });
+                              }
+                            },
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.auto_awesome, size: 16),
+                      label: const Text('Deteksi Otomatis', style: TextStyle(fontSize: 12)),
+                      onPressed: isTesting
+                          ? null
+                          : () async {
+                              setDialogState(() {
+                                isTesting = true;
+                                testStatus = '🔍 Mencari server aktif...';
+                              });
+                              final found = await ApiConstants.detectBestUrl();
+                              setDialogState(() {
+                                isTesting = false;
+                                if (found != null) {
+                                  controller.text = found;
+                                  testStatus = '✅ Ditemukan & Terhubung: $found';
+                                } else {
+                                  testStatus = '❌ Tidak ada server merespon. Pastikan backend aktif & USB terpasang.';
+                                }
+                              });
+                            },
+                    ),
+                  ],
+                ),
+                if (testStatus != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    testStatus!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: testStatus!.startsWith('✅') ? Colors.green.shade700 : Colors.red.shade700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await ApiConstants.setCustomBaseUrl(null);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _errorMessage = null;
+                  });
+                }
+              },
+              child: const Text('Reset'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF365C4A),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                await ApiConstants.setCustomBaseUrl(controller.text);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _errorMessage = null;
+                  });
+                }
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -50,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result['success'] == true) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => MainNavigationWrapper(cameras: widget.cameras),
+          builder: (context) => const MainNavigationWrapper(),
         ),
       );
     } else {
@@ -63,6 +255,37 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16, top: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.dns_outlined, color: Colors.white, size: 20),
+                    tooltip: 'Pengaturan Server URL',
+                    onPressed: _showServerSettings,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -184,16 +407,43 @@ class _LoginScreenState extends State<LoginScreen> {
                               border:
                                   Border.all(color: const Color(0xFFFECDD3)),
                             ),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.error_outline,
-                                    color: Color(0xFFBE123C), size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(
-                                        color: Color(0xFFBE123C), fontSize: 13),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.error_outline,
+                                        color: Color(0xFFBE123C), size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: const TextStyle(
+                                            color: Color(0xFFBE123C), fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: _showServerSettings,
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.settings_suggest_outlined,
+                                          size: 16, color: Color(0xFFBE123C)),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Ganti Alamat Server / Cek Koneksi',
+                                        style: TextStyle(
+                                          color: Color(0xFFBE123C),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],

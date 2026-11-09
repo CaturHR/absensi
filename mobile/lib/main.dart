@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'config/api_constants.dart';
 import 'widgets/liquid_glass.dart';
@@ -10,12 +9,10 @@ import 'screens/profile_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/leave_screen.dart';
 
-List<CameraDescription> cameras = [];
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi API Constants (baca custom server URL jika ada)
+  // Inisialisasi API Constants
   await ApiConstants.init();
 
   // Inisialisasi locale formatting Indonesia
@@ -25,20 +22,11 @@ Future<void> main() async {
     debugPrint('Format tanggal id_ID gagal diinisialisasi: $e');
   }
 
-  // Deteksi kamera perangkat
-  try {
-    cameras = await availableCameras();
-  } catch (e) {
-    debugPrint('Tidak dapat mendeteksi kamera saat startup: $e');
-  }
-
-  runApp(AbsensiApp(cameras: cameras));
+  runApp(const AbsensiApp());
 }
 
 class AbsensiApp extends StatelessWidget {
-  final List<CameraDescription> cameras;
-
-  const AbsensiApp({super.key, required this.cameras});
+  const AbsensiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -53,16 +41,14 @@ class AbsensiApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF7F7F2),
         useMaterial3: true,
       ),
-      home: SplashScreen(cameras: cameras),
+      home: const SplashScreen(),
     );
   }
 }
 
-/// Wrapper navigasi utama dengan Bottom Navigation Bar dan animasi transisi geser kaca modern (Liquid Glass Depth Transition)
+/// Wrapper navigasi utama dengan Bottom Navigation Bar dan Liquid Glass Depth Transition
 class MainNavigationWrapper extends StatefulWidget {
-  final List<CameraDescription> cameras;
-
-  const MainNavigationWrapper({super.key, required this.cameras});
+  const MainNavigationWrapper({super.key});
 
   @override
   State<MainNavigationWrapper> createState() => _MainNavigationWrapperState();
@@ -79,15 +65,14 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     _pageController = PageController(initialPage: _currentIndex);
     _pages = [
       HomeScreen(
-        cameras: widget.cameras,
         onSwitchTab: (index) {
           _onTabSelected(index);
         },
       ),
-      AttendanceScreen(cameras: widget.cameras),
-      LeaveScreen(cameras: widget.cameras),
+      const AttendanceScreen(),
+      const LeaveScreen(),
       const HistoryScreen(),
-      ProfileScreen(cameras: widget.cameras),
+      const ProfileScreen(),
     ];
   }
 
@@ -97,7 +82,6 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     super.dispose();
   }
 
-  /// Pindah halaman dengan animasi kurva lereng halus (easeOutCubic) saat tab diklik
   void _onTabSelected(int index) {
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
@@ -132,13 +116,8 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
                 value = (_pageController.initialPage - index).toDouble();
               }
 
-              // Hitung jarak penyimpangan dari halaman aktif (0.0 = fokus penuh)
               final double delta = value.abs().clamp(0.0, 1.0);
-
-              // Animasi Kedalaman Skala Kaca (1.0 turun ke 0.93 saat digeser)
               final double scale = 1.0 - (delta * 0.07);
-
-              // Animasi Kelembutan Opacity (1.0 turun ke 0.70)
               final double opacity = 1.0 - (delta * 0.30);
 
               return Transform.scale(
@@ -163,9 +142,9 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             label: 'Beranda',
           ),
           LiquidNavItem(
-            icon: Icons.camera_alt_outlined,
-            selectedIcon: Icons.camera_alt_rounded,
-            label: 'Presensi',
+            icon: Icons.fingerprint_outlined,
+            selectedIcon: Icons.fingerprint_rounded,
+            label: 'Absen',
           ),
           LiquidNavItem(
             icon: Icons.description_outlined,

@@ -1,72 +1,18 @@
 import React from 'react';
+import { Users, Clock, LogOut } from 'lucide-react';
 
 const menuItems = [
   {
-    id: 'leaves',
-    label: 'Approval Izin',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="4" width="20" height="16" rx="2" />
-        <path d="M22 7l-10 7L2 7" />
-      </svg>
-    ),
-  },
-  {
     id: 'users',
-    label: 'Tambah User',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <line x1="19" y1="8" x2="19" y2="14" />
-        <line x1="22" y1="11" x2="16" y2="11" />
-      </svg>
-    ),
+    label: 'Manajemen User',
+    description: 'Tambah, edit, dan kelola data user/karyawan',
+    icon: <Users size={28} className="text-[#1e5a8a]" />,
   },
   {
-    id: 'settings',
-    label: 'Tambah Titik Lokasi',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-        <circle cx="12" cy="9" r="2.5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'export',
-    label: 'Export Data',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="17 8 12 3 7 8" />
-        <line x1="12" y1="3" x2="12" y2="15" />
-      </svg>
-    ),
-  },
-  {
-    id: 'face',
-    label: 'Approval Not Match',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-        <path d="M2 2l2 2" />
-        <path d="M22 2l-2 2" />
-        <path d="M15 12a3 3 0 0 0-6 0" />
-      </svg>
-    ),
-  },
-  {
-    id: 'gallery',
-    label: 'Galeri & About',
-    icon: (
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" />
-        <polyline points="21 15 16 10 5 21" />
-      </svg>
-    ),
+    id: 'attendance',
+    label: 'Log Absensi',
+    description: 'Melihat catatan log absensi Clock In & Clock Out',
+    icon: <Clock size={28} className="text-[#1e5a8a]" />,
   },
 ];
 
@@ -100,18 +46,18 @@ export default function MenuAbsensi({ onSelectMenu, onLogout }) {
           <button
             onClick={onLogout}
             style={styles.logoutBtn}
+            title="Keluar dari akun admin"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+              e.currentTarget.style.color = '#ef4444';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#6b7a90';
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <LogOut size={18} />
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Logout</span>
           </button>
         </div>
       </header>
@@ -119,8 +65,8 @@ export default function MenuAbsensi({ onSelectMenu, onLogout }) {
       {/* Main Content */}
       <main style={styles.main}>
         <div style={styles.centerContent}>
-          <h2 style={styles.menuTitle}>Menu Absensi</h2>
-          <p style={styles.menuSubtitle}>Pilih salah satu menu di bawah ini</p>
+          <h2 style={styles.menuTitle}>Dashboard Admin</h2>
+          <p style={styles.menuSubtitle}>Silakan pilih menu manajemen yang ingin diakses</p>
 
           <div style={styles.cardsRow}>
             {menuItems.map((item) => (
@@ -130,19 +76,22 @@ export default function MenuAbsensi({ onSelectMenu, onLogout }) {
                 onClick={() => onSelectMenu(item.id)}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-6px)';
-                  e.currentTarget.style.boxShadow = '0 12px 32px rgba(30, 90, 138, 0.15)';
+                  e.currentTarget.style.boxShadow = '0 16px 36px rgba(30, 90, 138, 0.16)';
                   e.currentTarget.style.borderColor = '#1e5a8a';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 12px rgba(0, 0, 0, 0.04)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.05)';
                   e.currentTarget.style.borderColor = '#e8ecf1';
                 }}
               >
                 <div style={styles.iconCircle}>
                   {item.icon}
                 </div>
-                <span style={styles.cardLabel}>{item.label}</span>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={styles.cardLabel}>{item.label}</span>
+                  <p style={styles.cardDesc}>{item.description}</p>
+                </div>
               </button>
             ))}
           </div>
@@ -214,7 +163,7 @@ const styles = {
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#8c9ab0',
+    color: '#6b7a90',
     margin: 0,
     fontWeight: 400,
   },
@@ -223,10 +172,11 @@ const styles = {
     border: 'none',
     color: '#6b7a90',
     cursor: 'pointer',
-    padding: 10,
+    padding: '8px 14px',
     borderRadius: 10,
     display: 'flex',
     alignItems: 'center',
+    gap: 8,
     transition: 'all 0.2s ease',
   },
   main: {
@@ -240,6 +190,8 @@ const styles = {
   centerContent: {
     textAlign: 'center',
     animation: 'fadeInUp 0.5s ease-out 0.15s both',
+    maxWidth: 680,
+    width: '100%',
   },
   menuTitle: {
     fontSize: 28,
@@ -250,45 +202,53 @@ const styles = {
   },
   menuSubtitle: {
     fontSize: 14,
-    color: '#8c9ab0',
-    margin: '0 0 40px',
+    color: '#6b7a90',
+    margin: '0 0 36px',
     fontWeight: 400,
   },
   cardsRow: {
     display: 'flex',
-    gap: 16,
+    gap: 24,
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
   card: {
-    width: 146,
-    padding: '28px 16px 24px',
+    flex: '1 1 240px',
+    maxWidth: 290,
+    padding: '36px 24px 30px',
     background: '#f6f9fc',
     border: '1.5px solid #e8ecf1',
-    borderRadius: 16,
+    borderRadius: 20,
     cursor: 'pointer',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 16,
+    gap: 20,
     transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
     fontFamily: 'inherit',
   },
   iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     background: '#eaf0f7',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardLabel: {
-    fontSize: 13,
-    fontWeight: 600,
+    fontSize: 17,
+    fontWeight: 700,
     color: '#1a1a2e',
     lineHeight: 1.3,
-    textAlign: 'center',
+    display: 'block',
+    marginBottom: 6,
+  },
+  cardDesc: {
+    fontSize: 12,
+    color: '#718096',
+    margin: 0,
+    lineHeight: 1.4,
   },
 };

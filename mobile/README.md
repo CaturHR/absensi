@@ -38,7 +38,7 @@ Aplikasi mobile Flutter untuk presensi karyawan dengan verifikasi biometrik waja
 
 ## 📱 Konfigurasi URL Server Backend (`ApiConstants`)
 Aplikasi mobile mendukung pergantian alamat IP backend secara dinamis langsung dari layar aplikasi (ikon DNS / Server di pojok kanan atas layar login & profil):
-- **Default Server**: `http://163.52.135.187:5000`
+- **Default Server**: `http://localhost:5000` (Web / Desktop) atau `http://10.0.2.2:5000` (Android Emulator)
 - **Kustomisasi**: Anda dapat mengubah URL backend langsung lewat dialog server URL pada aplikasi jika diperlukan.
 
 ---

@@ -1,40 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { fetchUsers, deleteUser, createUser, updateUser } from '../../services/api';
-import { getImageUrl } from '../../utils/image';
+import {
+  ArrowLeft,
+  Search,
+  UserPlus,
+  Edit2,
+  Trash2,
+  RotateCcw,
+  LogOut,
+  Users as UsersIcon,
+  Shield,
+  User,
+  X,
+  Lock,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import { fetchUsers, deleteUser, updateUser } from '../../services/api';
 import AddUserModal from './AddUserModal';
-import UserPhotoModal from './UserPhotoModal';
 
 export default function DataUserPage({ onBack, onLogout }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [pageSize, setPageSize] = useState('10'); // 10, 15, 50, 100, 200, 500, 'all'
+  const [pageSize, setPageSize] = useState('15');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPhotoUser, setSelectedPhotoUser] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
 
-  // Form state for inline edit modal
-  const [editForm, setEditForm] = useState({ name: '', email: '', nip: '', password: '' });
+  // Edit User State
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', nip: '', divisi: '', password: '', role: 'user' });
   const [showEditModal, setShowEditModal] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
     try {
       const res = await fetchUsers();
       if (res && res.data) {
-        // Tampilkan semua role (termasuk admin), diurutkan dari user.id terendah
-        const userList = Array.isArray(res.data) ? res.data : [];
-        const sorted = [...userList].sort((a, b) => Number(a.id) - Number(b.id));
+        const sorted = [...res.data].sort((a, b) => Number(a.id) - Number(b.id));
         setUsers(sorted);
       } else {
         setUsers([]);
       }
     } catch (err) {
       setUsers([]);
-      showNotif('error', 'Gagal memuat data user dari database: ' + err.message);
+      showNotif('error', 'Gagal memuat data user: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -44,24 +56,22 @@ export default function DataUserPage({ onBack, onLogout }) {
     loadUsers();
   }, []);
 
+  const showNotif = (type, message) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3500);
+  };
+
   const handleUserCreated = (newUser) => {
     setUsers((prev) => [...prev, newUser].sort((a, b) => Number(a.id) - Number(b.id)));
     showNotif('success', `User "${newUser.name}" berhasil ditambahkan.`);
   };
 
-  const handlePhotoUpdated = (updatedUser) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === updatedUser.id ? { ...u, face_photo: updatedUser.face_photo } : u))
-    );
-    showNotif('success', `Foto master wajah "${updatedUser.name}" berhasil diperbarui.`);
-  };
-
   const handleDeleteUser = async (user) => {
-    if (window.confirm(`Yakin ingin menghapus user "${user.name}"?`)) {
+    if (window.confirm(`Yakin ingin menghapus user "${user.name}"? Data absensi terkait juga akan terhapus.`)) {
       try {
         await deleteUser(user.id);
         setUsers((prev) => prev.filter((u) => u.id !== user.id));
-        showNotif('success', `User "${user.name}" telah dihapus.`);
+        showNotif('success', `User "${user.name}" berhasil dihapus.`);
       } catch (err) {
         showNotif('error', 'Gagal menghapus user: ' + err.message);
       }
@@ -75,6 +85,7 @@ export default function DataUserPage({ onBack, onLogout }) {
       email: user.email || '',
       nip: user.nip || '',
       divisi: user.divisi || user.department || '',
+      role: user.role || 'user',
       password: '',
     });
     setShowEditModal(true);
@@ -85,1113 +96,343 @@ export default function DataUserPage({ onBack, onLogout }) {
     setSavingEdit(true);
     try {
       await updateUser(editingUser.id, {
-        name: editForm.name,
-        email: editForm.email,
-        nip: editForm.nip,
-        divisi: editForm.divisi,
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        nip: editForm.nip.trim(),
+        divisi: editForm.divisi.trim(),
+        role: editForm.role,
         ...(editForm.password ? { password: editForm.password } : {}),
       });
 
       setUsers((prev) =>
         prev.map((u) =>
           u.id === editingUser.id
-            ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip, divisi: editForm.divisi, department: editForm.divisi }
+            ? { ...u, name: editForm.name, email: editForm.email, nip: editForm.nip, divisi: editForm.divisi, role: editForm.role }
             : u
         )
       );
-      showNotif('success', `Data "${editForm.name}" berhasil diperbarui.`);
       setShowEditModal(false);
-      setEditingUser(null);
+      showNotif('success', `Data user "${editForm.name}" berhasil diperbarui.`);
     } catch (err) {
-      showNotif('error', 'Gagal memperbarui user: ' + err.message);
+      showNotif('error', 'Gagal mengupdate user: ' + err.message);
     } finally {
       setSavingEdit(false);
     }
   };
 
-  const showNotif = (type, message) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3500);
-  };
-
-  // Generate username from name (e.g. "Ahmad Fauzi" -> "ahmad.fauzi")
-  const getUsername = (name) => {
-    if (!name) return '-';
-    return name.toLowerCase().replace(/\s+/g, '.');
-  };
-
-  const handleSearchChange = (val) => {
-    setSearchQuery(val);
-    setCurrentPage(1);
-  };
-
-  const handlePageSizeChange = (val) => {
-    setPageSize(val);
-    setCurrentPage(1);
-  };
-
-  // Pastikan data selalu diurutkan dari user.id terendah
-  const sortedUsers = [...users].sort((a, b) => Number(a.id) - Number(b.id));
-
-  // Filter user berdasarkan nama, username/email, nip, role, atau divisi
-  const filteredUsers = sortedUsers.filter((user) => {
+  const filteredUsers = users.filter((u) => {
     if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    const name = (user.name || '').toLowerCase();
-    const email = (user.email || '').toLowerCase();
-    const username = (user.username || getUsername(user.name) || '').toLowerCase();
-    const nip = (user.nip || '').toLowerCase();
-    const role = (user.role || '').toLowerCase();
-    const divisi = (user.divisi || user.department || '').toLowerCase();
-
-    return (
-      name.includes(q) ||
-      email.includes(q) ||
-      username.includes(q) ||
-      nip.includes(q) ||
-      role.includes(q) ||
-      divisi.includes(q)
-    );
+    const query = searchQuery.toLowerCase().trim();
+    const name = (u.name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const nip = (u.nip || '').toLowerCase();
+    const divisi = (u.divisi || '').toLowerCase();
+    return name.includes(query) || email.includes(query) || nip.includes(query) || divisi.includes(query);
   });
 
-  // Logika Pagination / Pembatasan Tampilan Data
-  const isAll = pageSize === 'all';
-  const limit = isAll ? filteredUsers.length : parseInt(pageSize, 10) || 10;
-  const totalPages = isAll || limit === 0 ? 1 : Math.ceil(filteredUsers.length / limit) || 1;
-  const validPage = Math.min(Math.max(currentPage, 1), totalPages);
-
-  const paginatedUsers = isAll
-    ? filteredUsers
-    : filteredUsers.slice((validPage - 1) * limit, validPage * limit);
-
-  const startIndex = filteredUsers.length === 0 ? 0 : isAll ? 1 : (validPage - 1) * limit + 1;
-  const endIndex = isAll ? filteredUsers.length : Math.min(validPage * limit, filteredUsers.length);
-
   return (
-    <div style={styles.wrapper}>
-      {/* Top Header Bar */}
-      <header style={styles.header}>
-        <div style={styles.headerInner}>
-          <div style={styles.headerLeft}>
-            <button onClick={onBack} style={styles.backBtn}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(30,90,138,0.08)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+    <div className="min-h-screen bg-[#dce6f0] flex flex-col font-sans">
+      {/* Top Header */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-30 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onBack}
+              className="p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all flex items-center gap-2 cursor-pointer"
+              title="Kembali ke Menu Utama"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
+              <ArrowLeft size={20} />
+              <span className="text-sm font-medium hidden sm:inline">Menu Utama</span>
             </button>
-            <div style={styles.headerLogo}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-                <path d="M9 22v-4h6v4" />
-                <path d="M8 6h.01" /><path d="M16 6h.01" /><path d="M12 6h.01" />
-                <path d="M12 10h.01" /><path d="M12 14h.01" />
-                <path d="M16 10h.01" /><path d="M16 14h.01" />
-                <path d="M8 10h.01" /><path d="M8 14h.01" />
-              </svg>
-            </div>
-            <div>
-              <h1 style={styles.headerTitle}>PT Poca Jaringan Solusi</h1>
-              <p style={styles.headerSubtitle}>Sistem Absensi Karyawan</p>
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#1e5a8a] flex items-center justify-center text-white shadow-sm shadow-blue-900/20">
+                <UsersIcon size={20} />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-gray-900 leading-tight">Manajemen User</h1>
+                <p className="text-xs text-gray-500">Kelola akun pegawai dan hak akses sistem</p>
+              </div>
             </div>
           </div>
-          <button onClick={onLogout} style={styles.logoutBtn}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1e5a8a] hover:bg-[#174870] text-white rounded-xl font-semibold text-sm shadow-sm transition-all cursor-pointer"
+            >
+              <UserPlus size={17} />
+              <span>Tambah User</span>
+            </button>
+            <div className="h-6 w-px bg-gray-200" />
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+              title="Logout"
+            >
+              <LogOut size={18} />
+              <span className="hidden sm:inline font-medium">Logout</span>
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main style={styles.main}>
-        {/* Notification Toast */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
         {notification && (
-          <div style={{
-            ...styles.toast,
-            background: notification.type === 'error' ? '#fef2f2' : '#f0fdf4',
-            borderColor: notification.type === 'error' ? '#fecaca' : '#bbf7d0',
-            color: notification.type === 'error' ? '#dc2626' : '#16a34a',
-          }}>
+          <div
+            className={`p-4 rounded-xl text-sm font-medium flex items-center justify-between shadow-sm animate-fade-in ${
+              notification.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+            }`}
+          >
             <span>{notification.message}</span>
-            <button onClick={() => setNotification(null)} style={styles.toastClose}>✕</button>
+            <button onClick={() => setNotification(null)} className="text-xs font-bold underline cursor-pointer">
+              Tutup
+            </button>
           </div>
         )}
 
-        {/* Page Title + Action */}
-        <div style={styles.titleRow}>
-          <div style={styles.titleLeft}>
-            <div style={styles.titleIcon}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <line x1="19" y1="8" x2="19" y2="14" />
-                <line x1="22" y1="11" x2="16" y2="11" />
-              </svg>
-            </div>
-            <div>
-              <h2 style={styles.pageTitle}>Data User</h2>
-              <p style={styles.pageSubtitle}>
-                {searchQuery.trim()
-                  ? `Ditemukan ${filteredUsers.length} dari ${users.length} karyawan`
-                  : 'Daftar akun karyawan yang terdaftar di sistem'}
-              </p>
-            </div>
+        {/* Search Bar */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Cari user berdasarkan nama, NIP, atau divisi..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20 focus:border-[#1e5a8a] transition-all"
+            />
           </div>
-          <div style={styles.titleActions}>
-            {/* Limit Selector */}
-            <div style={styles.limitBox}>
-              <span style={styles.limitLabel}>Tampilkan:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(e.target.value)}
-                style={styles.limitSelect}
-                aria-label="Pilih jumlah data per halaman"
-              >
-                <option value="10">10 data</option>
-                <option value="15">15 data</option>
-                <option value="50">50 data</option>
-                <option value="100">100 data</option>
-                <option value="200">200 data</option>
-                <option value="500">500 data</option>
-                <option value="all">Semua (All)</option>
-              </select>
-            </div>
 
-            {/* Search Input Box */}
-            <div style={styles.searchBox}>
-              <span style={styles.searchIcon}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                placeholder="Cari nama, email, NIP, role..."
-                style={styles.searchInput}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#1e5a8a';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(30, 90, 138, 0.12)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#d1d9e6';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => handleSearchChange('')}
-                  style={styles.clearSearchBtn}
-                  title="Hapus pencarian"
-                  aria-label="Hapus pencarian"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => setIsModalOpen(true)}
-              style={styles.addBtn}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#174d76'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#1e5a8a'}
-            >
-              + Tambah User
-            </button>
-          </div>
+          <span className="text-xs font-medium text-gray-500">
+            Total Pengguna: <strong className="text-gray-900">{users.length}</strong>
+          </span>
         </div>
 
-        {/* Data Table */}
-        <div style={styles.tableCard}>
-          <div style={styles.tableScroll}>
-            <table style={styles.table}>
-              <thead>
-                <tr style={styles.tableHead}>
-                  <th style={{ ...styles.th, width: 50 }}>NO</th>
-                  <th style={{ ...styles.th, minWidth: 180 }}>NAMA</th>
-                  <th style={{ ...styles.th, minWidth: 140 }}>USERNAME/EMAIL</th>
-                  <th style={{ ...styles.th, minWidth: 130 }}>ROLE</th>
-                  <th style={{ ...styles.th, minWidth: 120 }}>NIP</th>
-                  <th style={{ ...styles.th, minWidth: 130 }}>DIVISI</th>
-                  <th style={{ ...styles.th, width: 70, textAlign: 'center' }}>FOTO</th>
-                  <th style={{ ...styles.th, width: 100, textAlign: 'center' }}>ACTION</th>
+        {/* Users Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50/80 text-gray-600 text-xs font-semibold uppercase tracking-wider border-b border-gray-100">
+                <tr>
+                  <th className="py-3.5 px-4 w-14 text-center">No</th>
+                  <th className="py-3.5 px-4">Nama Lengkap</th>
+                  <th className="py-3.5 px-4">NIP</th>
+                  <th className="py-3.5 px-4">Email / Username</th>
+                  <th className="py-3.5 px-4">Divisi</th>
+                  <th className="py-3.5 px-4 text-center">Role</th>
+                  <th className="py-3.5 px-4 text-center w-28">Aksi</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
-                      <div style={styles.spinner} />
-                      <span style={{ color: '#8c9ab0', fontSize: 13 }}>Memuat data...</span>
-                    </td>
-                  </tr>
-                ) : users.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#c4cdd8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                      </svg>
-                      <span style={{ color: '#8c9ab0', fontSize: 13, marginTop: 8 }}>Belum ada user terdaftar</span>
+                    <td colSpan={7} className="py-16 text-center text-gray-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 border-2 border-[#1e5a8a] border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs font-medium">Memuat data pengguna...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        <line x1="8" y1="11" x2="14" y2="11" />
-                      </svg>
-                      <span style={{ color: '#475569', fontSize: 13, marginTop: 8, fontWeight: 500 }}>
-                        Tidak ada user yang cocok dengan kata kunci "{searchQuery}"
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleSearchChange('')}
-                        style={styles.resetSearchBtn}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#dbeafe'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#eaf0f7'}
-                      >
-                        Reset Pencarian
-                      </button>
+                    <td colSpan={7} className="py-16 text-center text-gray-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <User size={36} className="text-gray-300" />
+                        <span className="text-sm font-medium text-gray-500">Tidak ada user ditemukan</span>
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  paginatedUsers.map((user, index) => (
-                    <tr key={user.id} style={styles.tableRow}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <td style={styles.td}>{startIndex + index}</td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: '#1a1a2e' }}>{user.name}</td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: '#1a1a2e' }}>{user.email}</td>
-                      <td style={{ ...styles.td }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.04em',
-                          background: user.role === 'admin' ? '#fef3c7' : '#e0f2fe',
-                          color: user.role === 'admin' ? '#92400e' : '#0369a1',
-                          border: user.role === 'admin' ? '1px solid #fde68a' : '1px solid #bae6fd',
-                        }}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                        {user.nip || '-'}
-                      </td>
-                      <td style={{ ...styles.td, fontSize: 13 }}>
-                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          {user.divisi || user.department || '-'}
-                        </span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPhotoUser(user)}
-                          style={styles.avatarButton}
-                          title={`Klik untuk melihat & mengubah foto master "${user.name}"`}
-                          aria-label={`Lihat dan ubah foto ${user.name}`}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'scale(1.08)';
-                            e.currentTarget.style.borderColor = '#1e5a8a';
-                            e.currentTarget.style.boxShadow = '0 3px 10px rgba(30, 90, 138, 0.25)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'scale(1)';
-                            e.currentTarget.style.borderColor = '#d1d5db';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        >
-                          {user.face_photo ? (
-                            <img
-                              src={getImageUrl(user.face_photo)}
-                              alt={user.name}
-                              style={styles.avatarImg}
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                const fallback = e.currentTarget.parentElement.querySelector('.avatar-fallback');
-                                if (fallback) fallback.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            className="avatar-fallback"
-                            style={{
-                              ...styles.avatarFallback,
-                              display: user.face_photo ? 'none' : 'flex',
-                            }}
-                          >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e5a8a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                            </svg>
+                  filteredUsers.map((user, index) => {
+                    const rowNumber = (currentPage - 1) * (pageSize === 'all' ? 0 : parseInt(pageSize, 10)) + index + 1;
+                    return (
+                      <tr key={user.id} className="hover:bg-blue-50/40 transition-colors">
+                        <td className="py-3.5 px-4 text-center text-xs font-medium text-gray-500">
+                          {rowNumber}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-[#1e5a8a]/10 text-[#1e5a8a] flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                              {(user.name || 'U').charAt(0)}
+                            </div>
+                            <span className="font-semibold text-gray-900">{user.name}</span>
                           </div>
-                          <div style={styles.avatarBadgeOverlay} title="Ubah Foto">
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                              <circle cx="12" cy="13" r="4" />
-                            </svg>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-xs text-gray-600">
+                          {user.nip || '-'}
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600">
+                          {user.email}
+                        </td>
+                        <td className="py-3.5 px-4 text-gray-600">
+                          <span className="px-2.5 py-1 bg-gray-100 rounded-md text-xs font-medium text-gray-700">
+                            {user.divisi || 'Umum'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {user.role === 'admin' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                              <Shield size={11} /> Admin
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              User
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                              title="Edit User"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(user)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Hapus User"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
-                        </button>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'center' }}>
-                        <div style={styles.actionCell}>
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            style={styles.editBtn}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#dbeafe'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = '#eff6ff'}
-                            title="Edit User"
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            style={styles.deleteBtn}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = '#fef2f2'}
-                            title="Hapus User"
-                          >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
-
-          {/* Table Footer: Info Jumlah Data & Pagination Controls */}
-          <div style={styles.tableFooter}>
-            <div style={styles.footerInfo}>
-              Menampilkan <span style={{ fontWeight: 600, color: '#1e293b' }}>{filteredUsers.length === 0 ? 0 : `${startIndex} - ${endIndex}`}</span> dari <span style={{ fontWeight: 600, color: '#1e293b' }}>{filteredUsers.length}</span> user
-              {users.length !== filteredUsers.length && ` (total ${users.length} akun)`}
-            </div>
-
-            {!isAll && totalPages > 1 && (
-              <div style={styles.paginationControls}>
-                <button
-                  type="button"
-                  disabled={validPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                  style={{
-                    ...styles.pageBtn,
-                    opacity: validPage <= 1 ? 0.45 : 1,
-                    cursor: validPage <= 1 ? 'not-allowed' : 'pointer',
-                  }}
-                  title="Halaman Sebelumnya"
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                  <span>Prev</span>
-                </button>
-
-                <div style={styles.pageIndicator}>
-                  Halaman <strong style={{ color: '#1e5a8a' }}>{validPage}</strong> dari <strong>{totalPages}</strong>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={validPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                  style={{
-                    ...styles.pageBtn,
-                    opacity: validPage >= totalPages ? 0.45 : 1,
-                    cursor: validPage >= totalPages ? 'not-allowed' : 'pointer',
-                  }}
-                  title="Halaman Selanjutnya"
-                >
-                  <span>Next</span>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </main>
 
-      {/* Add User Modal (existing) */}
+      {/* Add User Modal */}
       <AddUserModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onUserCreated={handleUserCreated}
       />
 
-      {/* User Master Photo View & Edit Modal */}
-      <UserPhotoModal
-        isOpen={Boolean(selectedPhotoUser)}
-        user={selectedPhotoUser}
-        onClose={() => setSelectedPhotoUser(null)}
-        onPhotoUpdated={handlePhotoUpdated}
-      />
-
-      {/* Edit User Modal */}
-      {showEditModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Edit User</h3>
-              <button onClick={() => setShowEditModal(false)} style={styles.modalCloseBtn}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div style={styles.modalBody}>
-              <div style={styles.modalField}>
-                <label style={styles.modalLabel}>Nama Lengkap</label>
-                <input
-                  style={styles.modalInput}
-                  value={editForm.name}
-                  onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-              <div style={styles.modalField}>
-                <label style={styles.modalLabel}>Email</label>
-                <input
-                  style={styles.modalInput}
-                  value={editForm.email}
-                  onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
-                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-              <div style={styles.modalField}>
-                <label style={styles.modalLabel}>NIP</label>
-                <input
-                  style={styles.modalInput}
-                  value={editForm.nip}
-                  onChange={(e) => setEditForm(f => ({ ...f, nip: e.target.value }))}
-                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-              <div style={styles.modalField}>
-                <label style={styles.modalLabel}>Divisi</label>
-                <input
-                  style={styles.modalInput}
-                  value={editForm.divisi}
-                  onChange={(e) => setEditForm(f => ({ ...f, divisi: e.target.value }))}
-                  placeholder="Contoh: Engineering, HR, Operasional"
-                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-              <div style={styles.modalField}>
-                <label style={styles.modalLabel}>Password Baru <span style={{ fontWeight: 400, color: '#9ca3af' }}>(kosongkan jika tidak diubah)</span></label>
-                <input
-                  type="password"
-                  style={styles.modalInput}
-                  value={editForm.password}
-                  onChange={(e) => setEditForm(f => ({ ...f, password: e.target.value }))}
-                  placeholder="••••••••"
-                  onFocus={(e) => { e.target.style.borderColor = '#1e5a8a'; e.target.style.boxShadow = '0 0 0 3px rgba(30,90,138,0.1)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-            </div>
-            <div style={styles.modalFooter}>
-              <button onClick={() => setShowEditModal(false)} style={styles.modalCancelBtn}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#f8fafc'}
-              >
-                Batal
-              </button>
+      {/* Inline Edit User Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 flex flex-col">
+            <div className="px-6 py-5 bg-gradient-to-r from-[#1e5a8a] to-[#256ea8] text-white flex items-center justify-between">
+              <h3 className="text-lg font-bold">Edit User</h3>
               <button
-                onClick={handleSaveEdit}
-                disabled={savingEdit}
-                style={styles.modalSaveBtn}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#174d76'}
-                onMouseLeave={(e) => e.currentTarget.style.background = '#1e5a8a'}
+                onClick={() => setShowEditModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
               >
-                {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+                <X size={18} />
               </button>
+            </div>
+
+            <div className="p-6 flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nama Lengkap</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">NIP</label>
+                  <input
+                    type="text"
+                    value={editForm.nip}
+                    onChange={(e) => setEditForm({ ...editForm, nip: e.target.value })}
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">Role</label>
+                  <select
+                    value={editForm.role}
+                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20 cursor-pointer"
+                  >
+                    <option value="user">User / Karyawan</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email / Username</label>
+                <input
+                  type="text"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Divisi</label>
+                <input
+                  type="text"
+                  value={editForm.divisi}
+                  onChange={(e) => setEditForm({ ...editForm, divisi: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                  Password Baru (Kosongkan jika tidak ingin mengubah)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editForm.password}
+                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                    placeholder="Masukkan password baru..."
+                    className="w-full pl-3.5 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    {showEditPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                  className="px-6 py-2.5 text-sm font-semibold text-white bg-[#1e5a8a] hover:bg-[#174870] rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
-
-const styles = {
-  wrapper: {
-    minHeight: '100vh',
-    background: '#dce6f0',
-    display: 'flex',
-    flexDirection: 'column',
-    fontFamily: "'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-  },
-  header: {
-    background: 'transparent',
-    padding: '20px 32px',
-    animation: 'slideDown 0.4s ease-out both',
-  },
-  headerInner: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    maxWidth: 1200,
-    margin: '0 auto',
-    width: '100%',
-  },
-  headerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backBtn: {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 8,
-    borderRadius: 10,
-    display: 'flex',
-    alignItems: 'center',
-    transition: 'all 0.2s ease',
-  },
-  headerLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: '#1e5a8a',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 3px 10px rgba(30, 90, 138, 0.25)',
-  },
-  headerTitle: {
-    fontSize: 15,
-    fontWeight: 700,
-    color: '#1a1a2e',
-    margin: 0,
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: '#8c9ab0',
-    margin: 0,
-  },
-  logoutBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: '#6b7a90',
-    cursor: 'pointer',
-    padding: 10,
-    borderRadius: 10,
-    display: 'flex',
-    alignItems: 'center',
-    transition: 'all 0.2s ease',
-  },
-  main: {
-    flex: 1,
-    padding: '0 32px 40px',
-    maxWidth: 1200,
-    margin: '0 auto',
-    width: '100%',
-    animation: 'fadeInUp 0.5s ease-out 0.1s both',
-  },
-  toast: {
-    padding: '12px 16px',
-    borderRadius: 12,
-    border: '1px solid',
-    fontSize: 13,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    animation: 'fadeInUp 0.3s ease-out both',
-  },
-  toastClose: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 14,
-    color: 'inherit',
-    opacity: 0.6,
-    padding: '0 4px',
-  },
-  titleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  titleLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-  },
-  titleIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    background: '#eaf0f7',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: '#1a1a2e',
-    margin: 0,
-  },
-  pageSubtitle: {
-    fontSize: 13,
-    color: '#8c9ab0',
-    margin: '2px 0 0',
-    fontWeight: 400,
-  },
-  titleActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  limitBox: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    background: '#ffffff',
-    border: '1.5px solid #d1d9e6',
-    borderRadius: 12,
-    padding: '0 12px',
-    height: 42,
-    boxSizing: 'border-box',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-  },
-  limitLabel: {
-    fontSize: 12.5,
-    fontWeight: 600,
-    color: '#64748b',
-    whiteSpace: 'nowrap',
-  },
-  limitSelect: {
-    border: 'none',
-    background: 'transparent',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#1e5a8a',
-    cursor: 'pointer',
-    outline: 'none',
-    padding: '4px 0',
-    fontFamily: 'inherit',
-  },
-  searchBox: {
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    width: 280,
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 12,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    pointerEvents: 'none',
-    color: '#8c9ab0',
-  },
-  searchInput: {
-    width: '100%',
-    height: 42,
-    padding: '0 36px 0 38px',
-    fontSize: 13,
-    color: '#1a1a2e',
-    background: '#ffffff',
-    border: '1.5px solid #d1d9e6',
-    borderRadius: 12,
-    outline: 'none',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
-    boxSizing: 'border-box',
-  },
-  clearSearchBtn: {
-    position: 'absolute',
-    right: 10,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: 22,
-    height: 22,
-    borderRadius: '50%',
-    background: '#e2e8f0',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#64748b',
-    padding: 0,
-    transition: 'all 0.15s ease',
-  },
-  resetSearchBtn: {
-    marginTop: 10,
-    padding: '6px 14px',
-    fontSize: 12.5,
-    fontWeight: 600,
-    color: '#1e5a8a',
-    background: '#eaf0f7',
-    border: '1px solid #c9d8eb',
-    borderRadius: 8,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-  },
-  addBtn: {
-    padding: '10px 22px',
-    fontSize: 14,
-    fontWeight: 600,
-    color: '#ffffff',
-    background: '#1e5a8a',
-    border: '2px solid #1e5a8a',
-    borderRadius: 12,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
-    boxShadow: '0 2px 8px rgba(30, 90, 138, 0.2)',
-  },
-  tableCard: {
-    background: '#ffffff',
-    borderRadius: 16,
-    border: '1px solid #e8ecf1',
-    boxShadow: '0 2px 16px rgba(0, 0, 0, 0.04)',
-    overflow: 'hidden',
-  },
-  tableFooter: {
-    padding: '14px 20px',
-    background: '#f8fafc',
-    borderTop: '1px solid #e8ecf1',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  footerInfo: {
-    fontSize: 13,
-    color: '#64748b',
-  },
-  paginationControls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  },
-  pageBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '6px 12px',
-    fontSize: 12.5,
-    fontWeight: 600,
-    color: '#1e5a8a',
-    background: '#ffffff',
-    border: '1px solid #cbd5e1',
-    borderRadius: 8,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-  },
-  pageIndicator: {
-    fontSize: 12.5,
-    color: '#64748b',
-    padding: '0 6px',
-  },
-  tableScroll: {
-    overflowX: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    textAlign: 'left',
-  },
-  tableHead: {
-    background: '#f6f8fb',
-    borderBottom: '1.5px solid #e8ecf1',
-  },
-  th: {
-    padding: '14px 16px',
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#6b7a90',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-  },
-  tableRow: {
-    borderBottom: '1px solid #f0f2f5',
-    transition: 'background 0.15s ease',
-  },
-  td: {
-    padding: '16px 16px',
-    fontSize: 13,
-    color: '#4a5568',
-    verticalAlign: 'middle',
-  },
-  usernameBadge: {
-    display: 'inline-block',
-    padding: '4px 12px',
-    background: '#eaf0f7',
-    borderRadius: 8,
-    fontSize: 12,
-    fontWeight: 500,
-    color: '#1e5a8a',
-    fontFamily: "'IBM Plex Mono', monospace",
-  },
-  passwordCell: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    color: '#9ca3af',
-    fontSize: 13,
-  },
-  avatarButton: {
-    position: 'relative',
-    width: 38,
-    height: 38,
-    borderRadius: '50%',
-    border: '2px solid #cbd5e1',
-    background: '#f1f5f9',
-    padding: 0,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    outline: 'none',
-  },
-  avatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: '50%',
-    objectFit: 'cover',
-  },
-  avatarFallback: {
-    width: '100%',
-    height: '100%',
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#eaf0f7',
-  },
-  avatarBadgeOverlay: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 15,
-    height: 15,
-    borderRadius: '50%',
-    background: '#1e5a8a',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    border: '1.5px solid #ffffff',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
-  },
-  actionCell: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  editBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    background: '#eff6ff',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'all 0.15s ease',
-  },
-  deleteBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    background: '#fef2f2',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'all 0.15s ease',
-  },
-  emptyCell: {
-    padding: '48px 16px',
-    textAlign: 'center',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  spinner: {
-    width: 24,
-    height: 24,
-    border: '2.5px solid #e5e7eb',
-    borderTopColor: '#1e5a8a',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
-    marginBottom: 8,
-  },
-
-  // Edit Modal styles
-  modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.4)',
-    backdropFilter: 'blur(4px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    padding: 16,
-    animation: 'fadeIn 0.2s ease-out both',
-  },
-  modalCard: {
-    background: '#ffffff',
-    borderRadius: 18,
-    width: '100%',
-    maxWidth: 440,
-    boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
-    animation: 'fadeInUp 0.3s ease-out both',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    padding: '20px 24px',
-    borderBottom: '1px solid #e8ecf1',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: 700,
-    color: '#1a1a2e',
-    margin: 0,
-  },
-  modalCloseBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#9ca3af',
-    cursor: 'pointer',
-    padding: 4,
-    borderRadius: 8,
-    display: 'flex',
-    alignItems: 'center',
-  },
-  modalBody: {
-    padding: '20px 24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 16,
-  },
-  modalField: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
-  modalLabel: {
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#3d4f66',
-  },
-  modalInput: {
-    padding: '10px 14px',
-    fontSize: 14,
-    border: '1px solid #e5e7eb',
-    borderRadius: 10,
-    background: '#f6f8fb',
-    outline: 'none',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
-    color: '#1a1a2e',
-  },
-  modalFooter: {
-    padding: '16px 24px',
-    borderTop: '1px solid #e8ecf1',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  modalCancelBtn: {
-    padding: '9px 18px',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#4a5568',
-    background: '#f8fafc',
-    border: '1px solid #e5e7eb',
-    borderRadius: 10,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    fontFamily: 'inherit',
-  },
-  modalSaveBtn: {
-    padding: '9px 18px',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#ffffff',
-    background: '#1e5a8a',
-    border: 'none',
-    borderRadius: 10,
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    fontFamily: 'inherit',
-    boxShadow: '0 2px 6px rgba(30, 90, 138, 0.2)',
-  },
-};

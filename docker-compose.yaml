@@ -12,24 +12,14 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./backend/config/database.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} > /dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 40s
-    networks:
-      - absen_network
-
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: absen_ai_service
-    restart: always
-    volumes:
-      # Simpan cache bobot model AI (DeepFace / SFace) agar tidak download ulang tiap restart
-      - deepface_cache:/root/.deepface
     networks:
       - absen_network
 
@@ -42,11 +32,9 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      ai-service:
-        condition: service_started
     environment:
       PORT: 5000
-      NODE_ENV: production
+      NODE_ENV: development
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: ${DB_USER:-absensi_user}
@@ -56,16 +44,14 @@ services:
       DB_MAX_IDLE: 10
       JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_attendance_key_replace_me}
       JWT_EXPIRES_IN: 24h
-      AI_SERVICE_URL: http://ai-service:8000
       DEFAULT_RADIUS_METERS: ${DEFAULT_RADIUS_METERS:-100}
       UPLOAD_MAX_SIZE_MB: 10
       CORS_ORIGIN: '*'
     volumes:
-      # Persistent storage untuk foto absen, wajah, dan berkas izin
+      # Persistent storage untuk foto absen dan berkas izin
       - uploads_storage:/app/uploads
     ports:
       - "5000:5000"
-
     networks:
       - absen_network
 
@@ -77,11 +63,10 @@ services:
     restart: always
     depends_on:
       - backend
-    expose:
-      - 80
+    ports:
+      - "3000:80"
     networks:
       - absen_network
-      - coolify
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
@@ -97,12 +82,8 @@ services:
 
 volumes:
   mysql_data:
-  deepface_cache:
   uploads_storage:
 
 networks:
   absen_network:
     driver: bridge
-  coolify:
-    name: coolify
-    external: true

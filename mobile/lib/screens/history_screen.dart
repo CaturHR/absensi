@@ -50,26 +50,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
     Color text;
     IconData icon;
 
-    switch (status) {
-      case 'Hadir':
-        bg = const Color(0xFFDCFCE7);
-        text = const Color(0xFF15803D);
-        icon = Icons.check_circle_outline;
-        break;
-      case 'Di Luar Radius':
-        bg = const Color(0xFFFFE4E6);
-        text = const Color(0xFFBE123C);
-        icon = Icons.location_off_outlined;
-        break;
-      default:
-        bg = const Color(0xFFFEF3C7);
-        text = const Color(0xFFB45309);
-        icon = Icons.warning_amber_rounded;
-        break;
+    final s = status.toLowerCase();
+
+    if (s.contains('in')) {
+      bg = const Color(0xFFDCFCE7);
+      text = const Color(0xFF15803D);
+      icon = Icons.login_rounded;
+    } else if (s.contains('out')) {
+      bg = const Color(0xFFDBEAFE);
+      text = const Color(0xFF1D4ED8);
+      icon = Icons.logout_rounded;
+    } else if (s.contains('izin')) {
+      bg = const Color(0xFFFEF3C7);
+      text = const Color(0xFFB45309);
+      icon = Icons.assignment_turned_in_rounded;
+    } else {
+      bg = const Color(0xFFF1F5F9);
+      text = const Color(0xFF475569);
+      icon = Icons.check_circle_outline;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(20),
@@ -77,11 +79,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: text, size: 13),
-          const SizedBox(width: 4),
+          Icon(icon, color: text, size: 14),
+          const SizedBox(width: 5),
           Text(
             status,
-            style: TextStyle(color: text, fontSize: 10.5, fontWeight: FontWeight.bold),
+            style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -127,7 +129,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           SafeArea(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF365C4A)))
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
                 : _errorMessage != null
                     ? Center(
                         child: Padding(
@@ -135,12 +137,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.cloud_off, size: 48, color: Colors.black38),
+                              const Icon(Icons.cloud_off, size: 48, color: Colors.white70),
                               const SizedBox(height: 12),
                               Text(
                                 _errorMessage!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                style: const TextStyle(fontSize: 13, color: Colors.white),
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton(
@@ -160,9 +162,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.event_busy_outlined, size: 48, color: Colors.black26),
+                                Icon(Icons.event_busy_outlined, size: 48, color: Colors.white60),
                                 SizedBox(height: 12),
-                                Text('Belum ada catatan riwayat absensi.', style: TextStyle(color: Colors.black45)),
+                                Text(
+                                  'Belum ada catatan riwayat absensi.',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                               ],
                             ),
                           )
@@ -171,96 +176,106 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             color: const Color(0xFF365C4A),
                             child: ListView.separated(
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                        itemCount: _historyList.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final item = _historyList[index];
-                          final createdAt = item['created_at'] != null
-                              ? DateTime.tryParse(item['created_at'])?.toLocal()
-                              : null;
+                              itemCount: _historyList.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final item = _historyList[index];
+                                final createdAt = item['created_at'] != null
+                                    ? DateTime.tryParse(item['created_at'])?.toLocal()
+                                    : null;
 
-                          final dateStr = createdAt != null
-                              ? DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(createdAt)
-                              : '-';
-                          final timeStr = createdAt != null
-                              ? DateFormat('HH:mm:ss').format(createdAt)
-                              : '-';
+                                final dateStr = createdAt != null
+                                    ? DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(createdAt)
+                                    : '-';
+                                final timeStr = createdAt != null
+                                    ? DateFormat('HH:mm').format(createdAt)
+                                    : '-';
 
-                          final status = item['status']?.toString() ?? 'Hadir';
-                          final isClockOut = status == 'Clock Out';
-                          final distance = item['distance'];
-                          final confidence = item['face_confidence'];
+                                final status = item['status']?.toString() ?? 'Clock In';
+                                final s = status.toLowerCase();
+                                final isClockIn = s.contains('in');
+                                final isIzin = s.contains('izin');
+                                final notes = item['notes']?.toString();
 
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.94),
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        dateStr,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF242721),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    _buildStatusBadge(status),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.access_time, size: 14, color: Colors.black38),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$timeStr WIB',
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54, fontFamily: 'monospace'),
-                                    ),
-                                    if (!isClockOut && distance != null) ...[
-                                      const Spacer(),
-                                      const Icon(Icons.near_me_outlined, size: 14, color: Colors.black38),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          'Jarak: ${(distance as num).toStringAsFixed(0)} m',
-                                          style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.94),
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
                                       ),
                                     ],
-                                  ],
-                                ),
-                                if (!isClockOut && confidence != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Kemiripan Wajah: ${(confidence as num).toStringAsFixed(1)}%',
-                                    style: const TextStyle(fontSize: 11, color: Colors.black45),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
                                   ),
-                                ],
-                              ],
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: isClockIn
+                                              ? const Color(0xFFDCFCE7)
+                                              : (isIzin ? const Color(0xFFFEF3C7) : const Color(0xFFDBEAFE)),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          isClockIn
+                                              ? Icons.login_rounded
+                                              : (isIzin ? Icons.assignment_turned_in_rounded : Icons.logout_rounded),
+                                          color: isClockIn
+                                              ? const Color(0xFF15803D)
+                                              : (isIzin ? const Color(0xFFB45309) : const Color(0xFF1D4ED8)),
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              dateStr,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1E293B),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Pukul $timeStr WIB',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black54,
+                                              ),
+                                            ),
+                                            if (notes != null && notes.trim().isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                notes.trim(),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Color(0xFF64748B),
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                      _buildStatusBadge(status),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
-                    ),
+                          ),
           ),
         ],
       ),

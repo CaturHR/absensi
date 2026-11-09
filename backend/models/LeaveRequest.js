@@ -17,7 +17,7 @@ const LeaveRequest = {
         reason VARCHAR(255) NOT NULL,
         description TEXT,
         attachment VARCHAR(500),
-        status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+        status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved',
         reviewed_by INT,
         reviewed_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -29,14 +29,14 @@ const LeaveRequest = {
   },
 
   /**
-   * Simpan permohonan izin baru.
-   * @param {object} data - { user_id, reason, description, attachment }
+   * Simpan permohonan izin baru. Otomatis disetujui (status = 'approved').
+   * @param {object} data - { user_id, reason, description, attachment, status }
    * @returns {Promise<object>}
    */
-  create: async ({ user_id, reason, description, attachment }) => {
+  create: async ({ user_id, reason, description, attachment, status = 'approved' }) => {
     const [result] = await pool.execute(
-      `INSERT INTO leave_requests (user_id, reason, description, attachment) VALUES (?, ?, ?, ?)`,
-      [user_id, reason, description || null, attachment || null]
+      `INSERT INTO leave_requests (user_id, reason, description, attachment, status, reviewed_at) VALUES (?, ?, ?, ?, ?, NOW())`,
+      [user_id, reason, description || null, attachment || null, status]
     );
     return {
       id: result.insertId,
@@ -44,7 +44,7 @@ const LeaveRequest = {
       reason,
       description,
       attachment,
-      status: 'pending',
+      status,
     };
   },
 

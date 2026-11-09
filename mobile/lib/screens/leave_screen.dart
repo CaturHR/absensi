@@ -15,9 +15,9 @@ import '../widgets/liquid_glass.dart';
 /// 1. Izin hanya dapat diajukan 1 kali per hari. Jika sudah izin, user hanya dapat mengedit izinnya.
 /// 2. Jika user sudah melakukan Clock In hari ini, pengajuan izin ditutup karena sudah tercatat hadir.
 class LeaveScreen extends StatefulWidget {
-  final List<CameraDescription> cameras;
+  final List<CameraDescription>? cameras;
 
-  const LeaveScreen({super.key, required this.cameras});
+  const LeaveScreen({super.key, this.cameras});
 
   @override
   State<LeaveScreen> createState() => _LeaveScreenState();
@@ -242,8 +242,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
         if (response.statusCode == 201 || response.statusCode == 200) {
           final isEdit = _isEditMode;
           _showSuccessDialog(
-            title: isEdit ? 'Izin Diperbarui!' : 'Izin Terkirim!',
-            message: data['message'] ?? (isEdit ? 'Permohonan izin berhasil diperbarui.' : 'Permohonan izin berhasil dikirim.'),
+            title: isEdit ? 'Izin Diperbarui!' : 'Izin Diterima!',
+            message: data['message'] ?? (isEdit ? 'Permohonan izin berhasil diperbarui.' : 'Permohonan izin berhasil dikirim dan otomatis disetujui.'),
           );
           await _loadTodayLeaveStatus();
         } else {
@@ -526,7 +526,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                       ),
                                       const SizedBox(height: 4),
                                       const Text(
-                                        'Pengajuan izin dibatasi 1 kali per hari. Anda hanya dapat mengubah/mengedit alasan, keterangan, dan lampiran permohonan izin ini.',
+                                        'Izin Anda hari ini telah diterima secara otomatis dan tercatat pada sistem presensi. Anda dapat mengubah alasan, keterangan, atau lampiran jika diperlukan.',
                                         style: TextStyle(
                                           color: Color(0xFF78350F),
                                           fontSize: 11.5,

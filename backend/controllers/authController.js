@@ -1,88 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
 const User = require('../models/User');
 require('dotenv').config();
 
 /**
- * AuthController - Menangani autentikasi (login, register, profil).
+ * AuthController - Menangani autentikasi (login, register admin, profil).
  */
 const authController = {
-  /**
-   * POST /api/auth/register
-   * Registrasi user baru (hanya admin yang bisa).
-   */
-  register: async (req, res, next) => {
-    try {
-      const { name, email, nip, password, role } = req.body;
-
-      // Validasi input
-      if (!name || !email || !nip || !password) {
-        return res.status(400).json({
-          success: false,
-          message: 'Nama, email/nama pengguna, NIP, dan password wajib diisi.',
-        });
-      }
-
-      // Cek email/username unik
-      const existingEmail = await User.findByEmail(email);
-      if (existingEmail) {
-        return res.status(409).json({
-          success: false,
-          message: 'Email atau nama pengguna sudah terdaftar.',
-        });
-      }
-
-      // Cek NIP unik
-      const existingNip = await User.findByNip(nip);
-      if (existingNip) {
-        return res.status(409).json({
-          success: false,
-          message: 'NIP sudah terdaftar.',
-        });
-      }
-
-      // Hash password
-      const salt = await bcrypt.genSalt(12);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      // Handle foto master wajah jika diunggah saat registrasi
-      let facePhotoRelative = null;
-      if (req.file) {
-        facePhotoRelative = `faces/${req.file.filename}`;
-      }
-
-      // Buat user
-      const user = await User.create({
-        name,
-        email,
-        nip,
-        password: hashedPassword,
-        role: role || 'user',
-        face_photo: facePhotoRelative,
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: 'User berhasil didaftarkan.',
-        data: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          nip: user.nip,
-          role: user.role,
-          face_photo: user.face_photo,
-        },
-      });
-    } catch (error) {
-      // Cleanup file jika terjadi error
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-      next(error);
-    }
-  },
-
   /**
    * POST /api/auth/login
    * Login menggunakan email/NIP + password.
@@ -99,7 +23,7 @@ const authController = {
         });
       }
 
-      // Cari user berdasarkan email / username (dengan atau tanpa @gmail.com)
+      // Cari user berdasarkan email / username
       let user = await User.findByEmail(loginId);
       // Jika tidak ditemukan, coba cari berdasarkan NIP
       if (!user) {
@@ -113,15 +37,13 @@ const authController = {
         });
       }
 
-      // Verifikasi password (mendukung bcrypt hash dan fallback plaintext jika diedit langsung di phpMyAdmin)
+      // Verifikasi password (mendukung hash bcrypt & fallback plaintext)
       let isPasswordValid = false;
       if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
         isPasswordValid = await bcrypt.compare(password, user.password);
       } else {
-        // Jika password diisi manual sebagai text biasa di phpMyAdmin
         isPasswordValid = (password === user.password);
         if (isPasswordValid) {
-          // Otomatis upgrade ke hash bcrypt
           try {
             const salt = await bcrypt.genSalt(12);
             const hashedPassword = await bcrypt.hash(password, salt);
@@ -139,7 +61,7 @@ const authController = {
         });
       }
 
-      // Generate JWT
+      // Generate JWT token
       const token = jwt.sign(
         {
           id: user.id,
@@ -161,7 +83,7 @@ const authController = {
             email: user.email,
             nip: user.nip,
             role: user.role,
-            face_photo: user.face_photo || null,
+            divisi: user.divisi,
           },
         },
       });
@@ -196,55 +118,61 @@ const authController = {
   },
 
   /**
-   * POST /api/auth/face
-   * Upload foto master wajah untuk user yang sedang login.
+   * POST /api/auth/register
+   * Registrasi user baru (admin only).
    */
-  uploadMyFacePhoto: async (req, res, next) => {
+  register: async (req, res, next) => {
     try {
-      const fs = require('fs');
-      const path = require('path');
-      const { UPLOAD_DIR_FACES } = require('../config/multer');
-      const id = req.user.id;
+      const { name, email, nip, password, role, divisi } = req.body;
 
-      if (!req.file) {
+      if (!name || !email || !nip || !password) {
         return res.status(400).json({
           success: false,
-          message: 'Foto wajah wajib diunggah.',
+          message: 'Nama, email, NIP, dan password wajib diisi.',
         });
       }
 
-      const user = await User.findById(id);
-      if (!user) {
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        return res.status(404).json({
+      const existingEmail = await User.findByEmail(email);
+      if (existingEmail) {
+        return res.status(409).json({
           success: false,
-          message: 'User tidak ditemukan.',
+          message: 'Email atau nama pengguna sudah terdaftar.',
         });
       }
 
-      // Hapus foto lama jika ada
-      if (user.face_photo) {
-        const oldPhotoPath = path.join(UPLOAD_DIR_FACES, path.basename(user.face_photo));
-        if (fs.existsSync(oldPhotoPath)) {
-          fs.unlinkSync(oldPhotoPath);
-        }
+      const existingNip = await User.findByNip(nip);
+      if (existingNip) {
+        return res.status(409).json({
+          success: false,
+          message: 'NIP sudah terdaftar.',
+        });
       }
 
-      const facePhotoRelative = `faces/${req.file.filename}`;
-      await User.update(id, { face_photo: facePhotoRelative });
+      const salt = await bcrypt.genSalt(12);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-      return res.status(200).json({
+      const user = await User.create({
+        name: name.trim(),
+        email: email.trim(),
+        nip: nip.trim(),
+        password: hashedPassword,
+        role: role || 'user',
+        divisi: divisi ? divisi.trim() : null,
+      });
+
+      return res.status(201).json({
         success: true,
-        message: 'Foto master wajah berhasil disimpan.',
+        message: 'User berhasil didaftarkan.',
         data: {
-          face_photo: facePhotoRelative,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          nip: user.nip,
+          role: user.role,
+          divisi: user.divisi,
         },
       });
     } catch (error) {
-      const fs = require('fs');
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       next(error);
     }
   },

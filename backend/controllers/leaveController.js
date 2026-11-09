@@ -1,13 +1,15 @@
 const LeaveRequest = require('../models/LeaveRequest');
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
-const { broadcastToAdmins } = require('../utils/sseManager');
+const { pool } = require('../config/database');
 const { getTodayRangeWIB } = require('../utils/dateHelper');
 const path = require('path');
 const fs = require('fs');
 
 /**
  * Controller untuk mengelola permohonan izin karyawan.
+ * Logika izin: langsung otomatis diterima tanpa perlu persetujuan admin,
+ * dan langsung tercatat pada tabel attendance_logs (status: 'Izin').
  */
 const leaveController = {
   /**
@@ -19,7 +21,7 @@ const leaveController = {
       const userId = req.user.id;
       const { reason, description } = req.body;
 
-      // 1. Cek apakah user sudah Clock In hari ini (sudah masuk log hadir)
+      // 1. Cek apakah user sudah Clock In hari ini
       const todayAttendance = await Attendance.getTodayStatus(userId);
       if (todayAttendance.hasClockedIn) {
         if (req.file) fs.unlinkSync(req.file.path);
@@ -30,13 +32,13 @@ const leaveController = {
         });
       }
 
-      // 2. Cek apakah user sudah pernah mengajukan izin hari ini (hanya 1x per hari)
+      // 2. Cek apakah user sudah pernah mengajukan izin hari ini
       const existingLeave = await LeaveRequest.findTodayByUserId(userId);
       if (existingLeave) {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(400).json({
           success: false,
-          message: 'Anda sudah mengajukan izin hari ini. Pengajuan izin hanya dapat dilakukan 1 kali per hari. Anda hanya dapat mengedit izin yang sudah diajukan.',
+          message: 'Anda sudah mengajukan izin hari ini. Pengajuan izin hanya dapat dilakukan 1 kali per hari. Anda dapat mengedit izin yang sudah diajukan.',
           data: existingLeave,
         });
       }
@@ -54,35 +56,32 @@ const leaveController = {
         attachmentPath = `uploads/leaves/${req.file.filename}`;
       }
 
+      // Simpan izin dengan status auto-approved
       const leave = await LeaveRequest.create({
         user_id: userId,
         reason: reason.trim(),
         description: description ? description.trim() : null,
         attachment: attachmentPath,
+        status: 'approved',
       });
 
-      // Kirim notifikasi ke semua admin/super user via SSE real-time
-      try {
-        const user = await User.findById(userId);
-        const userName = user ? user.name : 'Karyawan';
-        const notifData = {
-          title: '📋 Permohonan Izin Baru',
-          body: `${userName} mengajukan izin: ${reason.trim()}`,
-          userName,
-          reason: reason.trim(),
-          leaveId: leave.id || null,
-          timestamp: new Date().toISOString(),
-        };
+      // Otomatis masukkan log ke attendance_logs sebagai 'Izin' langsung
+      const noteText = description && description.trim()
+        ? `Izin: ${reason.trim()} - ${description.trim()}`
+        : `Izin: ${reason.trim()}`;
 
-        broadcastToAdmins('leave-request', notifData);
-      } catch (notifError) {
-        // Jangan gagalkan response jika notifikasi gagal terkirim
-        console.error('Notification error (non-fatal):', notifError.message);
+      try {
+        await Attendance.createLeaveLog({
+          user_id: userId,
+          notes: noteText,
+        });
+      } catch (logErr) {
+        console.warn('Gagal mencatat log izin ke attendance_logs:', logErr.message);
       }
 
       return res.status(201).json({
         success: true,
-        message: 'Permohonan izin berhasil dikirim.',
+        message: 'Permohonan izin berhasil dikirim dan otomatis disetujui.',
         data: leave,
       });
     } catch (error) {
@@ -101,20 +100,19 @@ const leaveController = {
   getTodayLeave: async (req, res) => {
     try {
       const userId = req.user.id;
-      const leave = await LeaveRequest.findTodayByUserId(userId);
+      const todayLeave = await LeaveRequest.findTodayByUserId(userId);
       const todayAttendance = await Attendance.getTodayStatus(userId);
 
       return res.status(200).json({
         success: true,
         data: {
-          leave,
+          leave: todayLeave,
           hasClockedIn: todayAttendance.hasClockedIn,
-          hasClockedOut: todayAttendance.hasClockedOut,
           clockInTime: todayAttendance.clockIn?.time || null,
         },
       });
     } catch (error) {
-      console.error('Error fetching today leave:', error);
+      console.error('Error getting today leave:', error);
       return res.status(500).json({
         success: false,
         message: 'Gagal memuat status izin hari ini.',
@@ -123,8 +121,7 @@ const leaveController = {
   },
 
   /**
-   * PUT /api/leaves/:id - Edit permohonan izin yang sudah diajukan hari ini
-   * Karyawan dapat mengubah alasan, keterangan, dan lampiran saja.
+   * PUT /api/leaves/:id - Edit permohonan izin hari ini (dari mobile)
    */
   update: async (req, res) => {
     try {
@@ -132,27 +129,16 @@ const leaveController = {
       const leaveId = parseInt(req.params.id, 10);
       const { reason, description, remove_attachment } = req.body;
 
-      // 1. Cek apakah user sudah Clock In hari ini
-      const todayAttendance = await Attendance.getTodayStatus(userId);
-      if (todayAttendance.hasClockedIn) {
-        if (req.file) fs.unlinkSync(req.file.path);
-        return res.status(400).json({
-          success: false,
-          message: 'Anda sudah melakukan Clock In hari ini dan tercatat hadir, sehingga tidak dapat mengedit izin.',
-        });
-      }
-
-      const leave = await LeaveRequest.findById(leaveId);
-      if (!leave) {
+      const existingLeave = await LeaveRequest.findById(leaveId);
+      if (!existingLeave) {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(404).json({
           success: false,
-          message: 'Permohonan izin tidak ditemukan.',
+          message: 'Data permohonan izin tidak ditemukan.',
         });
       }
 
-      // Pastikan izin milik user yang sedang login
-      if (leave.user_id !== userId) {
+      if (existingLeave.user_id !== userId && req.user.role !== 'admin') {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(403).json({
           success: false,
@@ -160,86 +146,52 @@ const leaveController = {
         });
       }
 
-      // Pastikan izin ini dibuat pada hari ini (WIB)
-      const { todayStr } = getTodayRangeWIB();
-      const leaveDate = new Date(leave.created_at);
-      const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' });
-      const leaveDateStr = formatter.format(leaveDate);
-
-      if (leaveDateStr !== todayStr) {
-        if (req.file) fs.unlinkSync(req.file.path);
-        return res.status(400).json({
-          success: false,
-          message: 'Anda hanya dapat mengedit permohonan izin pada hari yang sama.',
-        });
-      }
-
-      if (!reason || reason.trim() === '') {
-        if (req.file) fs.unlinkSync(req.file.path);
-        return res.status(400).json({
-          success: false,
-          message: 'Alasan izin wajib diisi.',
-        });
-      }
-
-      let attachmentPath = leave.attachment;
+      let attachmentPath = existingLeave.attachment;
 
       if (req.file) {
-        // Hapus file lama jika ada
-        if (leave.attachment) {
-          const oldFilePath = path.join(__dirname, '..', leave.attachment);
-          if (fs.existsSync(oldFilePath)) {
-            try {
-              fs.unlinkSync(oldFilePath);
-            } catch (err) {
-              console.error('Error deleting old leave attachment:', err.message);
-            }
-          }
+        if (existingLeave.attachment) {
+          const oldFile = path.join(__dirname, '..', existingLeave.attachment);
+          if (fs.existsSync(oldFile)) fs.unlinkSync(oldFile);
         }
         attachmentPath = `uploads/leaves/${req.file.filename}`;
-      } else if (remove_attachment === 'true' || remove_attachment === '1') {
-        if (leave.attachment) {
-          const oldFilePath = path.join(__dirname, '..', leave.attachment);
-          if (fs.existsSync(oldFilePath)) {
-            try {
-              fs.unlinkSync(oldFilePath);
-            } catch (err) {
-              console.error('Error deleting old leave attachment:', err.message);
-            }
-          }
+      } else if (remove_attachment === 'true' || remove_attachment === true) {
+        if (existingLeave.attachment) {
+          const oldFile = path.join(__dirname, '..', existingLeave.attachment);
+          if (fs.existsSync(oldFile)) fs.unlinkSync(oldFile);
         }
         attachmentPath = null;
       }
 
       await LeaveRequest.update({
         id: leaveId,
-        reason: reason.trim(),
-        description: description ? description.trim() : null,
+        reason: (reason || existingLeave.reason).trim(),
+        description: description !== undefined ? description?.trim() : existingLeave.description,
         attachment: attachmentPath,
       });
 
-      const updatedLeave = await LeaveRequest.findById(leaveId);
-
-      // Notifikasi SSE ke admin bahwa izin telah diperbarui
+      // Sinkronkan catatan di attendance_logs untuk izin hari ini
       try {
-        const user = await User.findById(userId);
-        const userName = user ? user.name : 'Karyawan';
-        broadcastToAdmins('leave-request-updated', {
-          title: '📝 Permohonan Izin Diperbarui',
-          body: `${userName} memperbarui izin: ${reason.trim()}`,
-          userName,
-          reason: reason.trim(),
-          leaveId: leaveId,
-          timestamp: new Date().toISOString(),
-        });
-      } catch (notifErr) {
-        console.error('Notification error (non-fatal):', notifErr.message);
+        const { startOfDay, endOfDay } = getTodayRangeWIB();
+        const updatedReason = (reason || existingLeave.reason).trim();
+        const updatedDesc = description !== undefined ? description?.trim() : existingLeave.description;
+        const noteText = updatedDesc ? `Izin: ${updatedReason} - ${updatedDesc}` : `Izin: ${updatedReason}`;
+
+        await pool.execute(
+          `UPDATE attendance_logs 
+           SET notes = ? 
+           WHERE user_id = ? AND status = 'Izin' AND created_at >= ? AND created_at <= ?`,
+          [noteText, existingLeave.user_id, startOfDay, endOfDay]
+        );
+      } catch (logErr) {
+        console.warn('Gagal memperbarui catatan izin di attendance_logs:', logErr.message);
       }
+
+      const updated = await LeaveRequest.findById(leaveId);
 
       return res.status(200).json({
         success: true,
         message: 'Permohonan izin berhasil diperbarui.',
-        data: updatedLeave,
+        data: updated,
       });
     } catch (error) {
       if (req.file) fs.unlinkSync(req.file.path);
@@ -252,45 +204,13 @@ const leaveController = {
   },
 
   /**
-   * GET /api/leaves - Ambil daftar semua permohonan izin (admin)
-   * Query: ?page=1&limit=20&status=pending|approved|rejected|all
-   */
-  getAll: async (req, res) => {
-    try {
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 20;
-      const status = req.query.status || 'all';
-      const { date_from, date_to } = req.query;
-
-      const result = await LeaveRequest.findAll({ page, limit, status, date_from, date_to });
-
-      return res.status(200).json({
-        success: true,
-        data: result.data,
-        pagination: {
-          total: result.total,
-          page: result.page,
-          totalPages: result.totalPages,
-          limit,
-        },
-      });
-    } catch (error) {
-      console.error('Error fetching leave requests:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Gagal memuat daftar permohonan izin.',
-      });
-    }
-  },
-
-  /**
-   * GET /api/leaves/my - Ambil permohonan izin milik user yang sedang login
+   * GET /api/leaves/my - Riwayat izin user yang sedang login
    */
   getMyLeaves: async (req, res) => {
     try {
       const userId = req.user.id;
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 20;
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
 
       const result = await LeaveRequest.findByUserId(userId, { page, limit });
 
@@ -301,29 +221,65 @@ const leaveController = {
           total: result.total,
           page: result.page,
           totalPages: result.totalPages,
-          limit,
         },
       });
     } catch (error) {
-      console.error('Error fetching my leave requests:', error);
+      console.error('Error getting my leaves:', error);
       return res.status(500).json({
         success: false,
-        message: 'Gagal memuat riwayat izin Anda.',
+        message: 'Gagal mengambil riwayat izin.',
       });
     }
   },
 
   /**
-   * GET /api/leaves/:id - Ambil detail permohonan izin
+   * GET /api/leaves - Ambil semua permohonan izin (admin)
+   */
+  getAll: async (req, res) => {
+    try {
+      const page = parseInt(req.query.page, 10) || 1;
+      const limit = parseInt(req.query.limit, 10) || 20;
+      const { status, date_from, date_to } = req.query;
+
+      const result = await LeaveRequest.findAll({ page, limit, status, date_from, date_to });
+
+      return res.status(200).json({
+        success: true,
+        data: result.data,
+        pagination: {
+          total: result.total,
+          page: result.page,
+          totalPages: result.totalPages,
+        },
+      });
+    } catch (error) {
+      console.error('Error getting all leaves:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Gagal mengambil data permohonan izin.',
+      });
+    }
+  },
+
+  /**
+   * GET /api/leaves/:id - Detail izin
    */
   getById: async (req, res) => {
     try {
-      const leave = await LeaveRequest.findById(req.params.id);
+      const id = parseInt(req.params.id, 10);
+      const leave = await LeaveRequest.findById(id);
 
       if (!leave) {
         return res.status(404).json({
           success: false,
           message: 'Permohonan izin tidak ditemukan.',
+        });
+      }
+
+      if (req.user.role !== 'admin' && leave.user_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Anda tidak memiliki akses ke permohonan izin ini.',
         });
       }
 
@@ -332,23 +288,23 @@ const leaveController = {
         data: leave,
       });
     } catch (error) {
-      console.error('Error fetching leave detail:', error);
+      console.error('Error getting leave by id:', error);
       return res.status(500).json({
         success: false,
-        message: 'Gagal memuat detail izin.',
+        message: 'Gagal mengambil detail permohonan izin.',
       });
     }
   },
 
   /**
-   * PATCH /api/leaves/:id/approve - Approve permohonan izin (admin only)
+   * PATCH /api/leaves/:id/approve - Setujui izin (admin)
    */
   approve: async (req, res) => {
     try {
-      const leaveId = req.params.id;
+      const id = parseInt(req.params.id, 10);
       const adminId = req.user.id;
 
-      const leave = await LeaveRequest.findById(leaveId);
+      const leave = await LeaveRequest.findById(id);
       if (!leave) {
         return res.status(404).json({
           success: false,
@@ -356,24 +312,28 @@ const leaveController = {
         });
       }
 
-      if (leave.status !== 'pending') {
-        return res.status(400).json({
-          success: false,
-          message: `Permohonan izin sudah ${leave.status === 'approved' ? 'disetujui' : 'ditolak'}.`,
-        });
+      await LeaveRequest.updateStatus(id, 'approved', adminId);
+
+      // Pastikan log presensi di attendance_logs tercatat (hindari duplikasi)
+      try {
+        const [existingLog] = await pool.execute(
+          `SELECT id FROM attendance_logs 
+           WHERE user_id = ? AND status = 'Izin' AND DATE(created_at) = DATE(?)`,
+          [leave.user_id, leave.created_at]
+        );
+        if (existingLog.length === 0) {
+          await Attendance.createLeaveLog({
+            user_id: leave.user_id,
+            notes: `Izin: ${leave.reason || 'Izin'}`,
+          });
+        }
+      } catch (logErr) {
+        console.warn('Gagal mencatat log izin ke attendance_logs:', logErr.message);
       }
-
-      await LeaveRequest.updateStatus(leaveId, 'approved', adminId);
-
-      // Buat log absensi dengan status 'Izin' setelah disetujui
-      await Attendance.createLeaveLog({
-        user_id: leave.user_id,
-        reason: leave.reason,
-      });
 
       return res.status(200).json({
         success: true,
-        message: 'Permohonan izin berhasil disetujui dan log absensi Izin telah dicatat.',
+        message: 'Permohonan izin berhasil disetujui.',
       });
     } catch (error) {
       console.error('Error approving leave:', error);
@@ -385,14 +345,14 @@ const leaveController = {
   },
 
   /**
-   * PATCH /api/leaves/:id/reject - Tolak permohonan izin (admin only)
+   * PATCH /api/leaves/:id/reject - Tolak izin (admin)
    */
   reject: async (req, res) => {
     try {
-      const leaveId = req.params.id;
+      const id = parseInt(req.params.id, 10);
       const adminId = req.user.id;
 
-      const leave = await LeaveRequest.findById(leaveId);
+      const leave = await LeaveRequest.findById(id);
       if (!leave) {
         return res.status(404).json({
           success: false,
@@ -400,18 +360,11 @@ const leaveController = {
         });
       }
 
-      if (leave.status !== 'pending') {
-        return res.status(400).json({
-          success: false,
-          message: `Permohonan izin sudah ${leave.status === 'approved' ? 'disetujui' : 'ditolak'}.`,
-        });
-      }
-
-      await LeaveRequest.updateStatus(leaveId, 'rejected', adminId);
+      await LeaveRequest.updateStatus(id, 'rejected', adminId);
 
       return res.status(200).json({
         success: true,
-        message: 'Permohonan izin telah ditolak.',
+        message: 'Permohonan izin berhasil ditolak.',
       });
     } catch (error) {
       console.error('Error rejecting leave:', error);

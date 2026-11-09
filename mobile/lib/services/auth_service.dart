@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/api_constants.dart';
 
@@ -12,7 +10,7 @@ class AuthService {
     required String identifier, // Email atau NIP
     required String password,
   }) async {
-    final uri = Uri.parse(ApiConstants.loginUrl);
+    Uri uri = Uri.parse(ApiConstants.loginUrl);
 
     try {
       final trimmed = identifier.trim();
@@ -23,13 +21,32 @@ class AuthService {
         'password': password,
       });
 
-      final response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: body,
-          )
-          .timeout(const Duration(seconds: 15));
+      http.Response response;
+      try {
+        response = await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            )
+            .timeout(const Duration(seconds: 4));
+      } catch (firstErr) {
+        // Jika gagal koneksi (timeout/refused), coba cari alternatif kandidat server lokal yang aktif
+        final alternative = await ApiConstants.detectBestUrl();
+        if (alternative != null && !uri.toString().startsWith(alternative)) {
+          ApiConstants.setAutoDetectedUrl(alternative);
+          uri = Uri.parse(ApiConstants.loginUrl);
+          response = await http
+              .post(
+                uri,
+                headers: {'Content-Type': 'application/json'},
+                body: body,
+              )
+              .timeout(const Duration(seconds: 8));
+        } else {
+          rethrow;
+        }
+      }
 
       final Map<String, dynamic> data = jsonDecode(response.body);
 
@@ -125,45 +142,6 @@ class AuthService {
       }
     } catch (_) {}
     return null;
-  }
-
-  /// Mengunggah foto master wajah user sendiri: POST /api/auth/face
-  static Future<Map<String, dynamic>> uploadMasterFace(XFile photoFile) async {
-    final uri = Uri.parse(ApiConstants.uploadFaceUrl);
-    final request = http.MultipartRequest('POST', uri);
-
-    final token = await getToken();
-    if (token != null && token.isNotEmpty) {
-      request.headers['Authorization'] = 'Bearer $token';
-    }
-
-    final bytes = await photoFile.readAsBytes();
-    final multipartFile = http.MultipartFile.fromBytes(
-      'face_photo',
-      bytes,
-      filename: photoFile.name.isNotEmpty ? photoFile.name : 'master_face.jpg',
-      contentType: MediaType('image', 'jpeg'),
-    );
-    request.files.add(multipartFile);
-
-    try {
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 25));
-      final response = await http.Response.fromStream(streamedResponse);
-      final decoded = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && decoded['success'] == true) {
-        final facePhoto = decoded['data']?['face_photo'];
-        if (facePhoto != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('user_face_photo', facePhoto.toString());
-        }
-        return {'success': true, 'message': decoded['message'] ?? 'Foto wajah berhasil disimpan.'};
-      } else {
-        return {'success': false, 'message': decoded['message'] ?? 'Gagal mengunggah foto wajah.'};
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Gagal menghubungi server: $e'};
-    }
   }
 
   /// Logout dan bersihkan data sesi (namun tetap pertahankan custom server URL)

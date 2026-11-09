@@ -45,25 +45,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, [String? notes]) {
     Color bg;
     Color text;
     IconData icon;
 
-    final s = status.toLowerCase();
+    final s = status.trim().toLowerCase();
+    final isNoteIzin = (notes ?? '').trim().toLowerCase().startsWith('izin');
 
-    if (s.contains('in')) {
-      bg = const Color(0xFFDCFCE7);
-      text = const Color(0xFF15803D);
-      icon = Icons.login_rounded;
-    } else if (s.contains('out')) {
-      bg = const Color(0xFFDBEAFE);
-      text = const Color(0xFF1D4ED8);
-      icon = Icons.logout_rounded;
-    } else if (s.contains('izin')) {
+    if (s == 'izin' || s.contains('izin') || isNoteIzin) {
       bg = const Color(0xFFFEF3C7);
       text = const Color(0xFFB45309);
       icon = Icons.assignment_turned_in_rounded;
+      status = 'Izin';
+    } else if (s == 'clock in' || s == 'in' || s.startsWith('clock in')) {
+      bg = const Color(0xFFDCFCE7);
+      text = const Color(0xFF15803D);
+      icon = Icons.login_rounded;
+    } else if (s == 'clock out' || s == 'out' || s.startsWith('clock out')) {
+      bg = const Color(0xFFDBEAFE);
+      text = const Color(0xFF1D4ED8);
+      icon = Icons.logout_rounded;
     } else {
       bg = const Color(0xFFF1F5F9);
       text = const Color(0xFF475569);
@@ -192,10 +194,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     : '-';
 
                                 final status = item['status']?.toString() ?? 'Clock In';
-                                final s = status.toLowerCase();
-                                final isClockIn = s.contains('in');
-                                final isIzin = s.contains('izin');
                                 final notes = item['notes']?.toString();
+                                final s = status.trim().toLowerCase();
+                                final isIzin = s == 'izin' || s.contains('izin') || (notes != null && notes.trim().toLowerCase().startsWith('izin'));
+                                final isClockIn = !isIzin && (s == 'clock in' || s == 'in' || s.startsWith('clock in'));
 
                                 return Container(
                                   padding: const EdgeInsets.all(16),
@@ -269,7 +271,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           ],
                                         ),
                                       ),
-                                      _buildStatusBadge(status),
+                                      _buildStatusBadge(status, notes),
                                     ],
                                   ),
                                 );

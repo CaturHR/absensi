@@ -62,13 +62,14 @@ const authController = {
       }
 
       // Generate JWT token
+      const jwtSecret = process.env.JWT_SECRET || 'super_secret_jwt_attendance_key_local_12345';
       const token = jwt.sign(
         {
           id: user.id,
           email: user.email,
           role: user.role,
         },
-        process.env.JWT_SECRET,
+        jwtSecret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
       );
 

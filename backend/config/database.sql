@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `attendance_logs` (
   `user_id` int(11) NOT NULL,
   `status` enum('Clock In','Clock Out','Izin') NOT NULL DEFAULT 'Clock In',
   `notes` text DEFAULT NULL,
+  `attachment` varchar(500) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_user_id` (`user_id`),

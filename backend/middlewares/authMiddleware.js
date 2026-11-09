@@ -28,7 +28,8 @@ const authMiddleware = (req, res, next) => {
     }
 
     const token = parts[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || 'super_secret_jwt_attendance_key_local_12345';
+    const decoded = jwt.verify(token, jwtSecret);
 
     // Attach user payload ke request
     req.user = {

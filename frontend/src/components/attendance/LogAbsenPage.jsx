@@ -8,9 +8,15 @@ import {
   CheckCircle2,
   LogOut as LogOutIcon,
   FileText,
-  UserCheck
+  UserCheck,
+  Paperclip,
+  ExternalLink,
+  X,
+  Eye,
+  Image as ImageIcon
 } from 'lucide-react';
 import { fetchAttendanceLogs } from '../../services/api';
+import { getImageUrl } from '../../utils/image';
 
 export default function LogAbsenPage({ onBack, onLogout }) {
   const [logs, setLogs] = useState([]);
@@ -22,6 +28,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
   const [pageSize, setPageSize] = useState('15');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
 
   const loadLogs = async () => {
     setLoading(true);
@@ -57,6 +64,21 @@ export default function LogAbsenPage({ onBack, onLogout }) {
     loadLogs();
   }, [statusFilter, dateFrom, dateTo, pageSize, currentPage]);
 
+  // Listener tombol Escape untuk menutup modal preview lampiran
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedAttachment(null);
+      }
+    };
+    if (selectedAttachment) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedAttachment]);
+
   // Client-side search filter by Name, NIP, or Divisi
   const filteredLogs = logs.filter((item) => {
     if (!searchQuery.trim()) return true;
@@ -86,9 +108,34 @@ export default function LogAbsenPage({ onBack, onLogout }) {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const s = (status || '').toLowerCase();
-    if (s.includes('in')) {
+  const isImageFile = (path = '') => {
+    if (!path) return false;
+    const clean = String(path).toLowerCase().split('?')[0];
+    return (
+      clean.endsWith('.jpg') ||
+      clean.endsWith('.jpeg') ||
+      clean.endsWith('.png') ||
+      clean.endsWith('.webp') ||
+      clean.endsWith('.gif') ||
+      clean.endsWith('.bmp') ||
+      clean.endsWith('.svg')
+    );
+  };
+
+  const getStatusBadge = (status, notes = '') => {
+    const s = (status || '').trim().toLowerCase();
+    const isNoteIzin = (notes || '').trim().toLowerCase().startsWith('izin');
+
+    // Cek status izin terlebih dahulu (hindari false-match karena 'izin' berakhiran 'in')
+    if (s === 'izin' || s.includes('izin') || isNoteIzin) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          Izin
+        </span>
+      );
+    }
+    if (s === 'clock in' || s === 'in' || s.startsWith('clock in')) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -96,19 +143,11 @@ export default function LogAbsenPage({ onBack, onLogout }) {
         </span>
       );
     }
-    if (s.includes('out')) {
+    if (s === 'clock out' || s === 'out' || s.startsWith('clock out')) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
           <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
           Clock Out
-        </span>
-      );
-    }
-    if (s.includes('izin')) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          Izin
         </span>
       );
     }
@@ -117,6 +156,19 @@ export default function LogAbsenPage({ onBack, onLogout }) {
         {status}
       </span>
     );
+  };
+
+  const handleOpenAttachment = (log) => {
+    if (!log.attachment) return;
+    setSelectedAttachment({
+      url: getImageUrl(log.attachment),
+      rawPath: log.attachment,
+      userName: log.user_name || 'Karyawan',
+      nip: log.user_nip || '-',
+      divisi: log.divisi || '-',
+      date: formatDateTime(log.created_at),
+      notes: log.notes || '',
+    });
   };
 
   const handleResetFilter = () => {
@@ -148,7 +200,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
               </div>
               <div>
                 <h1 className="text-base font-bold text-gray-900 leading-tight">Log Absensi Karyawan</h1>
-                <p className="text-xs text-gray-500">Melihat catatan Clock In dan Clock Out</p>
+                <p className="text-xs text-gray-500">Melihat catatan Clock In, Clock Out, dan Izin</p>
               </div>
             </div>
           </div>
@@ -253,12 +305,13 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4">Waktu Absensi</th>
                   <th className="py-3.5 px-4">Catatan</th>
+                  <th className="py-3.5 px-4 text-center">Lampiran</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center text-gray-400">
+                    <td colSpan={8} className="py-16 text-center text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="w-6 h-6 border-2 border-[#1e5a8a] border-t-transparent rounded-full animate-spin" />
                         <span className="text-xs font-medium">Memuat data log absensi...</span>
@@ -267,7 +320,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                   </tr>
                 ) : filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center text-gray-400">
+                    <td colSpan={8} className="py-16 text-center text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <FileText size={36} className="text-gray-300" />
                         <span className="text-sm font-medium text-gray-500">Tidak ada log absensi ditemukan</span>
@@ -303,13 +356,51 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          {getStatusBadge(log.status)}
+                          {getStatusBadge(log.status, log.notes)}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-xs text-gray-600 whitespace-nowrap">
                           {formatDateTime(log.created_at)}
                         </td>
-                        <td className="py-3.5 px-4 text-xs text-gray-500">
-                          {log.notes || '-'}
+                        <td className="py-3.5 px-4 text-xs text-gray-600">
+                          <div className="flex flex-col gap-1">
+                            <span>{log.notes || '-'}</span>
+                            {log.attachment && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAttachment(log)}
+                                className="inline-flex items-center gap-1 text-[11px] text-[#1e5a8a] hover:text-blue-800 hover:underline cursor-pointer w-fit font-medium"
+                              >
+                                <Paperclip size={12} />
+                                <span>Lihat Lampiran</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {log.attachment ? (
+                            <div className="flex items-center justify-center gap-2">
+                              {isImageFile(log.attachment) && (
+                                <img
+                                  src={getImageUrl(log.attachment)}
+                                  alt="Thumb"
+                                  className="w-8 h-8 rounded-lg object-cover border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity shadow-xs"
+                                  onClick={() => handleOpenAttachment(log)}
+                                  title="Klik untuk memperbesar lampiran"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAttachment(log)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-[#1e5a8a] hover:bg-[#1e5a8a] hover:text-white border border-[#1e5a8a]/20 transition-all cursor-pointer shadow-xs group"
+                                title="Lihat file lampiran"
+                              >
+                                <Paperclip size={13} className="group-hover:rotate-12 transition-transform" />
+                                <span>Lihat File</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400 font-medium">-</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -370,7 +461,94 @@ export default function LogAbsenPage({ onBack, onLogout }) {
           </div>
         </div>
       </main>
+
+      {/* Modal Preview Lampiran */}
+      {selectedAttachment && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setSelectedAttachment(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/80">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Paperclip size={18} className="text-[#1e5a8a]" />
+                  File Lampiran Izin
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {selectedAttachment.userName} ({selectedAttachment.nip}) • {selectedAttachment.divisi} • {selectedAttachment.date}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAttachment(null)}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-gray-50/50">
+              {isImageFile(selectedAttachment.rawPath || selectedAttachment.url) ? (
+                <div className="w-full flex flex-col items-center">
+                  <div className="relative max-h-[60vh] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm flex items-center justify-center">
+                    <img
+                      src={selectedAttachment.url}
+                      alt="Lampiran Izin"
+                      className="max-h-[60vh] w-auto object-contain rounded-xl"
+                    />
+                  </div>
+                  {selectedAttachment.notes && (
+                    <p className="mt-4 text-xs text-gray-600 bg-white px-4 py-2.5 rounded-xl border border-gray-200 w-full text-center">
+                      <span className="font-semibold text-gray-700">Catatan:</span> {selectedAttachment.notes}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <FileText size={48} className="text-[#1e5a8a]" />
+                  <span className="text-sm font-semibold text-gray-800">Dokumen Lampiran</span>
+                  <span className="text-xs text-gray-500 max-w-xs text-center truncate">
+                    {selectedAttachment.rawPath?.split('/').pop() || 'Dokumen'}
+                  </span>
+                  {selectedAttachment.notes && (
+                    <p className="mt-2 text-xs text-gray-600 bg-white px-4 py-2.5 rounded-xl border border-gray-200 w-full text-center">
+                      <span className="font-semibold text-gray-700">Catatan:</span> {selectedAttachment.notes}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-gray-100 bg-white flex items-center justify-between">
+              <a
+                href={selectedAttachment.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-[#1e5a8a] text-white hover:bg-[#16476e] transition-colors shadow-sm shadow-blue-900/10 cursor-pointer"
+              >
+                <ExternalLink size={14} />
+                <span>Buka di Tab Baru / Download</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAttachment(null)}
+                className="px-4 py-2 text-xs font-medium rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

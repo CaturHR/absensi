@@ -74,6 +74,7 @@ const leaveController = {
         await Attendance.createLeaveLog({
           user_id: userId,
           notes: noteText,
+          attachment: attachmentPath,
         });
       } catch (logErr) {
         console.warn('Gagal mencatat log izin ke attendance_logs:', logErr.message);
@@ -176,12 +177,21 @@ const leaveController = {
         const updatedDesc = description !== undefined ? description?.trim() : existingLeave.description;
         const noteText = updatedDesc ? `Izin: ${updatedReason} - ${updatedDesc}` : `Izin: ${updatedReason}`;
 
-        await pool.execute(
-          `UPDATE attendance_logs 
-           SET notes = ? 
-           WHERE user_id = ? AND status = 'Izin' AND created_at >= ? AND created_at <= ?`,
-          [noteText, existingLeave.user_id, startOfDay, endOfDay]
-        );
+        try {
+          await pool.execute(
+            `UPDATE attendance_logs 
+             SET notes = ?, status = 'Izin', attachment = ? 
+             WHERE user_id = ? AND (status = 'Izin' OR notes LIKE 'Izin:%') AND created_at >= ? AND created_at <= ?`,
+            [noteText, attachmentPath || null, existingLeave.user_id, startOfDay, endOfDay]
+          );
+        } catch (_) {
+          await pool.execute(
+            `UPDATE attendance_logs 
+             SET notes = ?, status = 'Izin' 
+             WHERE user_id = ? AND (status = 'Izin' OR notes LIKE 'Izin:%') AND created_at >= ? AND created_at <= ?`,
+            [noteText, existingLeave.user_id, startOfDay, endOfDay]
+          );
+        }
       } catch (logErr) {
         console.warn('Gagal memperbarui catatan izin di attendance_logs:', logErr.message);
       }
@@ -325,6 +335,7 @@ const leaveController = {
           await Attendance.createLeaveLog({
             user_id: leave.user_id,
             notes: `Izin: ${leave.reason || 'Izin'}`,
+            attachment: leave.attachment,
           });
         }
       } catch (logErr) {

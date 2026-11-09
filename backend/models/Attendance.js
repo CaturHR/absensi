@@ -29,12 +29,21 @@ const Attendance = {
   /**
    * Buat log presensi izin ketika permohonan disetujui
    */
-  createLeaveLog: async ({ user_id, notes = 'Izin disetujui' }) => {
-    const [result] = await pool.execute(
-      `INSERT INTO attendance_logs (user_id, status, notes) VALUES (?, 'Izin', ?)`,
-      [user_id, notes]
-    );
-    return { id: result.insertId, user_id, status: 'Izin' };
+  createLeaveLog: async ({ user_id, notes = 'Izin disetujui', attachment = null }) => {
+    try {
+      const [result] = await pool.execute(
+        `INSERT INTO attendance_logs (user_id, status, notes, attachment) VALUES (?, 'Izin', ?, ?)`,
+        [user_id, notes, attachment || null]
+      );
+      return { id: result.insertId, user_id, status: 'Izin', attachment };
+    } catch (err) {
+      // Fallback jika kolom attachment belum ada
+      const [result] = await pool.execute(
+        `INSERT INTO attendance_logs (user_id, status, notes) VALUES (?, 'Izin', ?)`,
+        [user_id, notes]
+      );
+      return { id: result.insertId, user_id, status: 'Izin' };
+    }
   },
 
   /**
@@ -52,8 +61,14 @@ const Attendance = {
       params.push(user_id);
     }
     if (status && status !== 'all') {
-      whereClause += ' AND a.status = ?';
-      params.push(status);
+      if (status === 'Izin' || status.toLowerCase() === 'izin') {
+        whereClause += " AND (a.status = 'Izin' OR a.notes LIKE 'Izin:%' OR a.notes LIKE 'Izin %')";
+      } else if (status === 'Clock In') {
+        whereClause += " AND a.status = 'Clock In' AND (a.notes IS NULL OR (a.notes NOT LIKE 'Izin:%' AND a.notes NOT LIKE 'Izin %'))";
+      } else {
+        whereClause += ' AND a.status = ?';
+        params.push(status);
+      }
     }
     if (date_from) {
       whereClause += ' AND DATE(a.created_at) >= ?';
@@ -74,9 +89,24 @@ const Attendance = {
     // Pagination
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT a.id, a.user_id, a.status, a.notes, a.created_at,
+      `SELECT a.id, a.user_id,
+              CASE 
+                WHEN a.notes LIKE 'Izin:%' OR a.notes LIKE 'Izin %' THEN 'Izin'
+                ELSE a.status 
+              END as status,
+              a.notes, a.created_at,
               u.name as user_name, u.nip as user_nip,
-              u.email as user_email, u.divisi
+              u.email as user_email, u.divisi,
+              (
+                SELECT lr.attachment 
+                FROM leave_requests lr 
+                WHERE lr.user_id = a.user_id 
+                  AND DATE(lr.created_at) = DATE(a.created_at)
+                  AND lr.attachment IS NOT NULL 
+                  AND lr.attachment != ''
+                ORDER BY lr.id DESC 
+                LIMIT 1
+              ) as attachment
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
        ${whereClause}
@@ -101,16 +131,31 @@ const Attendance = {
    */
   findByUserId: async (userId, { page = 1, limit = 20 } = {}) => {
     const [countResult] = await pool.execute(
-      "SELECT COUNT(*) as total FROM attendance_logs WHERE user_id = ? AND status IN ('Clock In', 'Clock Out', 'Izin')",
+      "SELECT COUNT(*) as total FROM attendance_logs WHERE user_id = ? AND (status IN ('Clock In', 'Clock Out', 'Izin') OR notes LIKE 'Izin:%')",
       [userId]
     );
     const total = countResult[0].total;
 
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT a.id, a.user_id, a.status, a.notes, a.created_at
+      `SELECT a.id, a.user_id,
+              CASE 
+                WHEN a.notes LIKE 'Izin:%' OR a.notes LIKE 'Izin %' THEN 'Izin'
+                ELSE a.status 
+              END as status,
+              a.notes, a.created_at,
+              (
+                SELECT lr.attachment 
+                FROM leave_requests lr 
+                WHERE lr.user_id = a.user_id 
+                  AND DATE(lr.created_at) = DATE(a.created_at)
+                  AND lr.attachment IS NOT NULL 
+                  AND lr.attachment != ''
+                ORDER BY lr.id DESC 
+                LIMIT 1
+              ) as attachment
        FROM attendance_logs a
-       WHERE a.user_id = ? AND a.status IN ('Clock In', 'Clock Out', 'Izin')
+       WHERE a.user_id = ? AND (a.status IN ('Clock In', 'Clock Out', 'Izin') OR a.notes LIKE 'Izin:%')
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
       [userId, limit.toString(), offset.toString()]
@@ -131,8 +176,23 @@ const Attendance = {
    */
   findById: async (id) => {
     const [rows] = await pool.execute(
-      `SELECT a.id, a.user_id, a.status, a.notes, a.created_at,
-              u.name as user_name, u.nip as user_nip, u.divisi
+      `SELECT a.id, a.user_id,
+              CASE 
+                WHEN a.notes LIKE 'Izin:%' OR a.notes LIKE 'Izin %' THEN 'Izin'
+                ELSE a.status 
+              END as status,
+              a.notes, a.created_at,
+              u.name as user_name, u.nip as user_nip, u.divisi,
+              (
+                SELECT lr.attachment 
+                FROM leave_requests lr 
+                WHERE lr.user_id = a.user_id 
+                  AND DATE(lr.created_at) = DATE(a.created_at)
+                  AND lr.attachment IS NOT NULL 
+                  AND lr.attachment != ''
+                ORDER BY lr.id DESC 
+                LIMIT 1
+              ) as attachment
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
        WHERE a.id = ?`,
@@ -153,18 +213,18 @@ const Attendance = {
 
     const { startOfDay, endOfDay } = getTodayRangeWIB();
     const [rows] = await pool.execute(
-      `SELECT id, user_id, status, created_at FROM attendance_logs 
+      `SELECT id, user_id, status, notes, created_at FROM attendance_logs 
        WHERE user_id = ? 
          AND created_at >= ? 
          AND created_at <= ? 
-         AND status IN ('Clock In', 'Clock Out', 'Izin')
+         AND (status IN ('Clock In', 'Clock Out', 'Izin') OR notes LIKE 'Izin:%')
        ORDER BY created_at ASC`,
       [userId, startOfDay, endOfDay]
     );
 
-    const clockIn = rows.find((r) => r.status === 'Clock In') || null;
+    const clockIn = rows.find((r) => r.status === 'Clock In' && (!r.notes || !r.notes.startsWith('Izin:'))) || null;
     const clockOut = rows.find((r) => r.status === 'Clock Out') || null;
-    const leaveLog = rows.find((r) => r.status === 'Izin') || null;
+    const leaveLog = rows.find((r) => r.status === 'Izin' || (r.notes && r.notes.startsWith('Izin:'))) || null;
 
     // Cek juga permohonan izin dari tabel leave_requests hari ini
     const [leaveRows] = await pool.execute(

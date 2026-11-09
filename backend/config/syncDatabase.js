@@ -10,7 +10,6 @@ const { pool } = require('./database');
  */
 async function syncDatabase() {
   try {
-    console.log('🔄 Memeriksa dan menyelaraskan skema database...');
 
     // 1. Drop foreign key ke locations pada attendance_logs jika ada
     try {
@@ -34,7 +33,6 @@ async function syncDatabase() {
     // 2. Drop tabel `galleries` dan `locations` jika masih ada
     await pool.execute('DROP TABLE IF EXISTS galleries');
     await pool.execute('DROP TABLE IF EXISTS locations');
-    console.log('✅ Tabel galleries dan locations berhasil dipastikan terhapus.');
 
     // 3. Pastikan kolom attendance_logs disederhanakan (jadikan NULL-able jika masih ada kolom lama agar aman)
     try {
@@ -99,7 +97,48 @@ async function syncDatabase() {
       await pool.execute(`UPDATE leave_requests SET status = 'approved' WHERE status = 'pending'`);
     } catch (_) {}
 
-    console.log('✅ Skema database sinkron: hanya tabel users, attendance_logs, dan leave_requests.');
+    // 7. Pastikan kolom attachment ada di tabel attendance_logs untuk menyimpan lampiran izin
+    try {
+      const [cols] = await pool.execute(`
+        SELECT COLUMN_NAME 
+        FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'attendance_logs' 
+          AND COLUMN_NAME = 'attachment'
+      `);
+      if (cols.length === 0) {
+        await pool.execute(`ALTER TABLE attendance_logs ADD COLUMN attachment VARCHAR(500) NULL DEFAULT NULL AFTER notes`);
+      }
+    } catch (colErr) {
+      console.warn('Catatan penambahan kolom attachment:', colErr.message);
+    }
+
+    // 8. Selaraskan status absensi: jika catatan mengandung 'Izin:', pastikan status adalah 'Izin'
+    try {
+      await pool.execute(`
+        UPDATE attendance_logs 
+        SET status = 'Izin' 
+        WHERE (notes LIKE 'Izin:%' OR notes LIKE 'Izin %') AND status != 'Izin'
+      `);
+    } catch (statusErr) {
+      console.warn('Catatan sinkronisasi status izin:', statusErr.message);
+    }
+
+    // 9. Sinkronkan file lampiran dari tabel leave_requests ke attendance_logs
+    try {
+      await pool.execute(`
+        UPDATE attendance_logs a
+        JOIN leave_requests lr ON lr.user_id = a.user_id AND DATE(lr.created_at) = DATE(a.created_at)
+        SET a.attachment = lr.attachment
+        WHERE (a.status = 'Izin' OR a.notes LIKE 'Izin:%')
+          AND lr.attachment IS NOT NULL 
+          AND lr.attachment != ''
+          AND (a.attachment IS NULL OR a.attachment = '')
+      `);
+    } catch (attErr) {
+      console.warn('Catatan sinkronisasi attachment izin:', attErr.message);
+    }
+
   } catch (error) {
     console.error('⚠️ Peringatan saat sinkronisasi database:', error.message);
   }

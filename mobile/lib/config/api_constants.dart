@@ -7,9 +7,12 @@ class ApiConstants {
   static String? _cachedBaseUrl;
   static String? _autoDetectedUrl;
 
-  /// Daftar kandidat URL lokal untuk pengujian Android
-  /// 127.0.0.1 via ADB reverse adalah metode paling stabil & kebal perubahan IP Wi-Fi
+  /// IP Wi-Fi PC saat ini (dapat diakses langsung oleh HP fisik di jaringan Wi-Fi yang sama)
+  static const String currentWifiIp = '192.168.1.52';
+
+  /// Daftar kandidat URL lokal untuk pengujian Android / Desktop / Web
   static const List<String> localAndroidCandidates = [
+    'http://192.168.1.52:5000', // Wi-Fi LAN IP PC (Sangat cocok untuk HP fisik via Wi-Fi)
     'http://127.0.0.1:5000',    // Port forwarding USB via ADB reverse (Sangat Stabil)
     'http://10.0.2.2:5000',     // Android Studio Emulator
     'http://localhost:5000',    // Localhost loopback
@@ -20,29 +23,39 @@ class ApiConstants {
     final prefs = await SharedPreferences.getInstance();
     _cachedBaseUrl = prefs.getString(_prefKeyCustomBaseUrl);
 
-    // Jika belum ada custom URL tetap dan platform adalah Android, auto-detect candidate yang aktif
-    if ((_cachedBaseUrl == null || _cachedBaseUrl!.isEmpty) &&
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android) {
-      _autoDetectedUrl = await detectBestUrl();
+    // Jika di Android dan nilai tersimpan adalah localhost, hapus karena localhost di Android mengarah ke HP sendiri
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        _cachedBaseUrl != null &&
+        _cachedBaseUrl!.contains('localhost')) {
+      _cachedBaseUrl = null;
+      await prefs.remove(_prefKeyCustomBaseUrl);
     }
+
+    // Jalankan auto-detect untuk menemukan server lokal yang aktif merespon
+    _autoDetectedUrl = await detectBestUrl();
   }
 
   /// Cek kandidat URL lokal yang aktif dan merespon /api/health secara paralel
   static Future<String?> detectBestUrl() async {
     final List<String> testList = [
-      ...localAndroidCandidates,
       if (_cachedBaseUrl != null && _cachedBaseUrl!.isNotEmpty) _cachedBaseUrl!,
+      ...localAndroidCandidates,
     ];
 
-    // Tes semua kandidat secara paralel agar tidak ada waktu tunggu berlebih
-    final futures = testList.map((candidate) async {
+    final seen = <String>{};
+    final uniqueCandidates = testList
+        .map((c) => c.trim().replaceAll(RegExp(r'/+$'), ''))
+        .where((c) => c.isNotEmpty && seen.add(c))
+        .toList();
+
+    // Tes semua kandidat secara paralel dengan batas waktu 2 detik
+    final futures = uniqueCandidates.map((candidate) async {
       try {
-        final clean = candidate.trim().replaceAll(RegExp(r'/+$'), '');
-        final uri = Uri.parse('$clean/api/health');
-        final res = await http.get(uri).timeout(const Duration(milliseconds: 1500));
+        final uri = Uri.parse('$candidate/api/health');
+        final res = await http.get(uri).timeout(const Duration(milliseconds: 2000));
         if (res.statusCode == 200) {
-          return clean;
+          return candidate;
         }
       } catch (_) {}
       return null;
@@ -50,21 +63,31 @@ class ApiConstants {
 
     final results = await Future.wait(futures);
     for (final res in results) {
-      if (res != null) return res;
+      if (res != null) {
+        _autoDetectedUrl = res;
+        return res;
+      }
     }
     return null;
   }
 
-  /// Base URL aktif (prioritas: custom URL pengguna > hasil auto-detect > default lokal 127.0.0.1)
+  /// Base URL aktif (prioritas: hasil auto-detect yang merespon > custom URL pengguna > default platform)
   static String get baseUrl {
-    if (_cachedBaseUrl != null && _cachedBaseUrl!.trim().isNotEmpty) {
-      return _cachedBaseUrl!.trim().replaceAll(RegExp(r'/+$'), '');
-    }
-
+    // 1. Jika auto-detect telah menemukan URL yang aktif dan terbukti merespon
     if (_autoDetectedUrl != null && _autoDetectedUrl!.trim().isNotEmpty) {
       return _autoDetectedUrl!.trim().replaceAll(RegExp(r'/+$'), '');
     }
 
+    // 2. Custom URL manual dari user (jika bukan localhost di Android)
+    if (_cachedBaseUrl != null && _cachedBaseUrl!.trim().isNotEmpty) {
+      final cached = _cachedBaseUrl!.trim().replaceAll(RegExp(r'/+$'), '');
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && cached.contains('localhost')) {
+        return 'http://$currentWifiIp:5000';
+      }
+      return cached;
+    }
+
+    // 3. Web browser
     if (kIsWeb) {
       try {
         final host = Uri.base.host;
@@ -75,9 +98,9 @@ class ApiConstants {
       return 'http://localhost:5000';
     }
 
+    // 4. Android platform default (Gunakan IP Wi-Fi agar HP fisik langsung terhubung)
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // Default ke 127.0.0.1:5000 (bekerja via ADB reverse tanpa tergantung jaringan Wi-Fi)
-      return 'http://127.0.0.1:5000';
+      return 'http://$currentWifiIp:5000';
     }
 
     return 'http://localhost:5000';
@@ -99,6 +122,7 @@ class ApiConstants {
       final sanitized = url.trim().replaceAll(RegExp(r'/+$'), '');
       await prefs.setString(_prefKeyCustomBaseUrl, sanitized);
       _cachedBaseUrl = sanitized;
+      _autoDetectedUrl = sanitized;
     }
   }
 
@@ -108,7 +132,7 @@ class ApiConstants {
       return 'http://localhost:5000';
     }
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://127.0.0.1:5000';
+      return 'http://$currentWifiIp:5000';
     }
     return 'http://localhost:5000';
   }

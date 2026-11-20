@@ -8,14 +8,14 @@ class ApiConstants {
   static String? _autoDetectedUrl;
 
   /// IP Wi-Fi PC saat ini (dapat diakses langsung oleh HP fisik di jaringan Wi-Fi yang sama)
-  static const String currentWifiIp = '192.168.1.52';
+  static const String currentWifiIp = '10.79.251.25';
 
   /// Daftar kandidat URL lokal untuk pengujian Android / Desktop / Web
   static const List<String> localAndroidCandidates = [
-    'http://192.168.1.52:5000', // Wi-Fi LAN IP PC (Sangat cocok untuk HP fisik via Wi-Fi)
-    'http://127.0.0.1:5000',    // Port forwarding USB via ADB reverse (Sangat Stabil)
-    'http://10.0.2.2:5000',     // Android Studio Emulator
-    'http://localhost:5000',    // Localhost loopback
+    'http://10.79.251.25:5000', // Wi-Fi LAN IP PC (Sangat cocok untuk HP fisik via Wi-Fi)
+    'http://127.0.0.1:5000', // Port forwarding USB via ADB reverse (Sangat Stabil)
+    'http://10.0.2.2:5000', // Android Studio Emulator
+    'http://localhost:5000', // Localhost loopback
   ];
 
   /// Inisialisasi API Constants (memuat baseUrl tersimpan dari SharedPreferences jika ada)
@@ -53,7 +53,8 @@ class ApiConstants {
     final futures = uniqueCandidates.map((candidate) async {
       try {
         final uri = Uri.parse('$candidate/api/health');
-        final res = await http.get(uri).timeout(const Duration(milliseconds: 2000));
+        final res =
+            await http.get(uri).timeout(const Duration(milliseconds: 2000));
         if (res.statusCode == 200) {
           return candidate;
         }
@@ -81,7 +82,9 @@ class ApiConstants {
     // 2. Custom URL manual dari user (jika bukan localhost di Android)
     if (_cachedBaseUrl != null && _cachedBaseUrl!.trim().isNotEmpty) {
       final cached = _cachedBaseUrl!.trim().replaceAll(RegExp(r'/+$'), '');
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && cached.contains('localhost')) {
+      if (!kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android &&
+          cached.contains('localhost')) {
         return 'http://$currentWifiIp:5000';
       }
       return cached;

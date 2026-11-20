@@ -54,7 +54,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               color: isClockIn ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
             ),
             const SizedBox(width: 10),
-            Text('Konfirmasi $actionName'),
+            Flexible(
+              child: Text('Konfirmasi $actionName'),
+            ),
           ],
         ),
         content: Text(

@@ -171,7 +171,10 @@ export default function LogAbsenPage({ onBack, onLogout }) {
     if (log.rt || log.rw) {
       parts.push(`RT ${log.rt || '-'}/RW ${log.rw || '-'}`);
     }
-    if (log.kelurahan) parts.push(`Kel. ${log.kelurahan}`);
+    if (log.kelurahan) {
+      const kelName = log.kelurahan.replace(/^(kelurahan|kel\.?)\s+/i, '').trim();
+      parts.push(kelName);
+    }
     if (log.kecamatan) parts.push(`Kec. ${log.kecamatan}`);
     if (log.kabupaten) parts.push(log.kabupaten);
     if (log.provinsi) parts.push(`Prov. ${log.provinsi}`);

@@ -64,7 +64,10 @@ const geocoder = {
         if (rwMatch) rw = rwMatch[1];
 
         // Kelurahan / Desa
-        const kelurahan = addr.village || addr.suburb || addr.quarter || addr.neighbourhood || addr.hamlet || null;
+        let kelurahan = addr.village || addr.suburb || addr.quarter || addr.neighbourhood || addr.hamlet || null;
+        if (kelurahan) {
+          kelurahan = kelurahan.replace(/^(kelurahan|kel\.?)\s+/i, '').trim();
+        }
 
         // Kecamatan
         const kecamatan = addr.city_district || addr.subdistrict || addr.municipality || null;
@@ -83,7 +86,7 @@ const geocoder = {
         if (rt || rw) {
           parts.push(`RT ${rt || '-'}/RW ${rw || '-'}`);
         }
-        if (kelurahan) parts.push(`Kel. ${kelurahan}`);
+        if (kelurahan) parts.push(kelurahan);
         if (kecamatan) parts.push(`Kec. ${kecamatan}`);
         if (kabupaten) parts.push(kabupaten);
         if (provinsi) parts.push(`Prov. ${provinsi}`);

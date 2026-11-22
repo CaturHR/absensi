@@ -216,7 +216,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   if ((rt != null && rt.isNotEmpty) || (rw != null && rw.isNotEmpty)) {
                                     parts.add('RT ${rt ?? "-"}/RW ${rw ?? "-"}');
                                   }
-                                  if (kel != null && kel.isNotEmpty) parts.add('Kel. $kel');
+                                  if (kel != null && kel.isNotEmpty) {
+                                    final cleanKel = kel.replaceFirst(RegExp(r'^(kelurahan|kel\.?)\s+', caseSensitive: false), '').trim();
+                                    parts.add(cleanKel);
+                                  }
                                   if (kec != null && kec.isNotEmpty) parts.add('Kec. $kec');
                                   if (kab != null && kab.isNotEmpty) parts.add(kab);
                                   if (prov != null && prov.isNotEmpty) parts.add('Prov. $prov');

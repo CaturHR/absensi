@@ -11,6 +11,7 @@ class TodayAttendanceStatus {
   final bool hasLeaveToday;
   final String? leaveReason;
   final String? leaveStatus;
+  final String? rejectReason;
   final Map<String, dynamic>? todayLeave;
 
   TodayAttendanceStatus({
@@ -21,6 +22,7 @@ class TodayAttendanceStatus {
     this.hasLeaveToday = false,
     this.leaveReason,
     this.leaveStatus,
+    this.rejectReason,
     this.todayLeave,
   });
 
@@ -55,6 +57,7 @@ class TodayAttendanceStatus {
       hasLeaveToday: data['hasLeaveToday'] == true,
       leaveReason: todayLeave?['reason']?.toString(),
       leaveStatus: todayLeave?['status']?.toString(),
+      rejectReason: todayLeave?['reject_reason']?.toString(),
       todayLeave: todayLeave,
     );
   }
@@ -65,12 +68,14 @@ class AttendanceResult {
   final String status;
   final String message;
   final String? time;
+  final Map<String, dynamic>? location;
 
   AttendanceResult({
     required this.isSuccess,
     required this.status,
     required this.message,
     this.time,
+    this.location,
   });
 
   factory AttendanceResult.fromJson(Map<String, dynamic> json) {
@@ -80,6 +85,7 @@ class AttendanceResult {
       status: data['status']?.toString() ?? (json['success'] == true ? 'Clock In' : 'Gagal'),
       message: json['message']?.toString() ?? 'Proses presensi selesai.',
       time: data['time']?.toString(),
+      location: data['location'] as Map<String, dynamic>?,
     );
   }
 }
@@ -140,13 +146,21 @@ class AttendanceService {
     return null;
   }
 
-  /// Mengirim absensi Clock In atau Clock Out tanpa AI dan tanpa Lokasi
+  /// Mengirim absensi Clock In atau Clock Out beserta koordinat GPS lokasi
   /// Endpoint: POST /api/attendance
-  /// Body: { type: 'in' | 'out' }
-  static Future<AttendanceResult> submitAttendance({required String type}) async {
+  /// Body: { type: 'in' | 'out', latitude?: double, longitude?: double }
+  static Future<AttendanceResult> submitAttendance({
+    required String type,
+    double? latitude,
+    double? longitude,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.submitAttendanceUrl);
       final token = await _getAuthToken();
+
+      final Map<String, dynamic> payload = {'type': type};
+      if (latitude != null) payload['latitude'] = latitude;
+      if (longitude != null) payload['longitude'] = longitude;
 
       final response = await http.post(
         uri,
@@ -154,7 +168,7 @@ class AttendanceService {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({'type': type}),
+        body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 15));
 
       final decoded = jsonDecode(response.body);

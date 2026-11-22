@@ -199,6 +199,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 final isIzin = s == 'izin' || s.contains('izin') || (notes != null && notes.trim().toLowerCase().startsWith('izin'));
                                 final isClockIn = !isIzin && (s == 'clock in' || s == 'in' || s.startsWith('clock in'));
 
+                                final alamat = item['alamat']?.toString();
+                                final jalan = item['jalan']?.toString();
+                                String? displayLocation;
+                                if (jalan != null && jalan.isNotEmpty) {
+                                  final nomor = item['nomor']?.toString();
+                                  final rt = item['rt']?.toString();
+                                  final rw = item['rw']?.toString();
+                                  final kel = item['kelurahan']?.toString();
+                                  final kec = item['kecamatan']?.toString();
+                                  final kab = item['kabupaten']?.toString();
+                                  final prov = item['provinsi']?.toString();
+
+                                  final parts = <String>[];
+                                  parts.add(nomor != null && nomor.isNotEmpty ? 'Jl. $jalan No. $nomor' : 'Jl. $jalan');
+                                  if ((rt != null && rt.isNotEmpty) || (rw != null && rw.isNotEmpty)) {
+                                    parts.add('RT ${rt ?? "-"}/RW ${rw ?? "-"}');
+                                  }
+                                  if (kel != null && kel.isNotEmpty) parts.add('Kel. $kel');
+                                  if (kec != null && kec.isNotEmpty) parts.add('Kec. $kec');
+                                  if (kab != null && kab.isNotEmpty) parts.add(kab);
+                                  if (prov != null && prov.isNotEmpty) parts.add('Prov. $prov');
+                                  displayLocation = parts.join(', ');
+                                } else if (alamat != null && alamat.isNotEmpty) {
+                                  displayLocation = alamat;
+                                }
+
                                 return Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
@@ -266,6 +292,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                                 ),
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                            if (displayLocation != null) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  const Icon(Icons.location_on, size: 12, color: Color(0xFF365C4A)),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      displayLocation,
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        color: Color(0xFF475569),
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ],

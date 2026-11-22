@@ -149,3 +149,68 @@ export async function deleteUser(id) {
 
   return { success: true };
 }
+
+/**
+ * 7. Ambil Daftar Permohonan Izin (Leave Requests)
+ */
+export async function fetchLeaveRequests(params = {}) {
+  const query = new URLSearchParams();
+  if (params.status && params.status !== 'all') query.append('status', params.status);
+  if (params.date_from) query.append('date_from', params.date_from);
+  if (params.date_to) query.append('date_to', params.date_to);
+  if (params.page) query.append('page', params.page);
+  if (params.limit) query.append('limit', params.limit);
+
+  const res = await fetch(`/api/leaves?${query.toString()}`, {
+    headers: { ...getAuthHeader() },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Gagal mengambil data permohonan izin.');
+  }
+
+  const data = await res.json();
+  return { success: true, data: data.data || [], pagination: data.pagination };
+}
+
+/**
+ * 8. Setujui Permohonan Izin
+ */
+export async function approveLeave(id) {
+  const res = await fetch(`/api/leaves/${id}/approve`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Gagal menyetujui permohonan izin.');
+  }
+
+  return { success: true, data: data.data };
+}
+
+/**
+ * 9. Tolak Permohonan Izin
+ */
+export async function rejectLeave(id, reject_reason) {
+  const res = await fetch(`/api/leaves/${id}/reject`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+    },
+    body: JSON.stringify({ reject_reason }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || 'Gagal menolak permohonan izin.');
+  }
+
+  return { success: true, data: data.data };
+}

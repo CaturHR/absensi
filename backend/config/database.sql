@@ -1,5 +1,5 @@
 -- Database: `absensi_db`
--- Hanya berisi tabel: users, attendance_logs, leave_requests
+-- Berisi tabel: users, attendance_logs, leave_requests, locations
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -75,16 +75,44 @@ CREATE TABLE IF NOT EXISTS `leave_requests` (
   `reason` varchar(255) NOT NULL,
   `description` text DEFAULT NULL,
   `attachment` varchar(500) DEFAULT NULL,
-  `status` enum('pending','approved','rejected') DEFAULT 'approved',
+  `status` enum('pending','approved','rejected') DEFAULT 'pending',
+  `reject_reason` text DEFAULT NULL,
   `reviewed_by` int(11) DEFAULT NULL,
-  `reviewed_at` datetime DEFAULT current_timestamp(),
+  `reviewed_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `reviewed_by` (`reviewed_by`),
+  KEY `status` (`status`),
   CONSTRAINT `fk_leave_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_leave_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `locations`
+--
+
+CREATE TABLE IF NOT EXISTS `locations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `attendance_id` int(11) NOT NULL,
+  `latitude` double NOT NULL,
+  `longitude` double NOT NULL,
+  `alamat` text DEFAULT NULL,
+  `jalan` varchar(255) DEFAULT NULL,
+  `nomor` varchar(50) DEFAULT NULL,
+  `rt` varchar(20) DEFAULT NULL,
+  `rw` varchar(20) DEFAULT NULL,
+  `kelurahan` varchar(100) DEFAULT NULL,
+  `kecamatan` varchar(100) DEFAULT NULL,
+  `kabupaten` varchar(100) DEFAULT NULL,
+  `provinsi` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_attendance_id` (`attendance_id`),
+  CONSTRAINT `fk_locations_attendance` FOREIGN KEY (`attendance_id`) REFERENCES `attendance_logs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 COMMIT;

@@ -3,6 +3,7 @@ import LoginPage from './components/layout/LoginPage';
 import MenuAbsensi from './components/layout/MenuAbsensi';
 import DataUserPage from './components/users/DataUserPage';
 import LogAbsenPage from './components/attendance/LogAbsenPage';
+import LeaveApprovalPage from './components/leaves/LeaveApprovalPage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(null);
@@ -124,6 +125,11 @@ export default function App() {
     // 2. Menu: Melihat Log Absen
     if (activeTab === 'attendance') {
       return <LogAbsenPage onBack={handleBackToMenu} onLogout={handleLogout} />;
+    }
+
+    // 3. Menu: Persetujuan Izin
+    if (activeTab === 'leaves') {
+      return <LeaveApprovalPage onBack={handleBackToMenu} onLogout={handleLogout} />;
     }
 
     return <MenuAbsensi onSelectMenu={handleSelectMenu} onLogout={handleLogout} />;

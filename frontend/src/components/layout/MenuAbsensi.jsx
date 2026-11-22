@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Clock, LogOut } from 'lucide-react';
+import { Users, Clock, FileCheck, LogOut } from 'lucide-react';
 
 const menuItems = [
   {
@@ -11,8 +11,14 @@ const menuItems = [
   {
     id: 'attendance',
     label: 'Log Absensi',
-    description: 'Melihat catatan log absensi Clock In & Clock Out',
+    description: 'Melihat catatan Clock In, Clock Out, dan Lokasi GPS',
     icon: <Clock size={28} className="text-[#1e5a8a]" />,
+  },
+  {
+    id: 'leaves',
+    label: 'Persetujuan Izin',
+    description: 'Verifikasi, setujui atau tolak permohonan izin karyawan',
+    icon: <FileCheck size={28} className="text-[#1e5a8a]" />,
   },
 ];
 
@@ -190,7 +196,7 @@ const styles = {
   centerContent: {
     textAlign: 'center',
     animation: 'fadeInUp 0.5s ease-out 0.15s both',
-    maxWidth: 680,
+    maxWidth: 960,
     width: '100%',
   },
   menuTitle: {

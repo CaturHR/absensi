@@ -17,25 +17,28 @@ const LeaveRequest = {
         reason VARCHAR(255) NOT NULL,
         description TEXT,
         attachment VARCHAR(500),
-        status ENUM('pending', 'approved', 'rejected') DEFAULT 'approved',
+        status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+        reject_reason TEXT NULL,
         reviewed_by INT,
         reviewed_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
-      )
+        INDEX idx_user_id (user_id),
+        INDEX idx_status (status),
+        CONSTRAINT fk_leave_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_leave_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
   },
 
   /**
-   * Simpan permohonan izin baru. Otomatis disetujui (status = 'approved').
+   * Simpan permohonan izin baru. Default status = 'pending'.
    * @param {object} data - { user_id, reason, description, attachment, status }
    * @returns {Promise<object>}
    */
-  create: async ({ user_id, reason, description, attachment, status = 'approved' }) => {
+  create: async ({ user_id, reason, description, attachment, status = 'pending' }) => {
     const [result] = await pool.execute(
-      `INSERT INTO leave_requests (user_id, reason, description, attachment, status, reviewed_at) VALUES (?, ?, ?, ?, ?, NOW())`,
+      `INSERT INTO leave_requests (user_id, reason, description, attachment, status, reviewed_at) VALUES (?, ?, ?, ?, ?, NULL)`,
       [user_id, reason, description || null, attachment || null, status]
     );
     return {
@@ -45,6 +48,9 @@ const LeaveRequest = {
       description,
       attachment,
       status,
+      reject_reason: null,
+      reviewed_by: null,
+      reviewed_at: null,
     };
   },
 
@@ -97,7 +103,7 @@ const LeaveRequest = {
   /**
    * Ambil semua permohonan izin (untuk admin).
    * Join dengan tabel users untuk info nama karyawan.
-   * @param {object} filters - { page, limit, status }
+   * @param {object} filters - { page, limit, status, date_from, date_to }
    * @returns {Promise<{ data: Array, total: number, page: number, totalPages: number }>}
    */
   findAll: async ({ page = 1, limit = 20, status, date_from, date_to } = {}) => {
@@ -125,7 +131,7 @@ const LeaveRequest = {
 
     const offset = (page - 1) * limit;
     const [rows] = await pool.execute(
-      `SELECT lr.*, u.name as user_name, u.nip as user_nip, u.email as user_email,
+      `SELECT lr.*, u.name as user_name, u.nip as user_nip, u.email as user_email, u.divisi,
               r.name as reviewer_name,
               (
                 SELECT TIME_FORMAT(a.created_at, '%H:%i')
@@ -194,7 +200,7 @@ const LeaveRequest = {
    */
   findById: async (id) => {
     const [rows] = await pool.execute(
-      `SELECT lr.*, u.name as user_name, u.nip as user_nip, u.email as user_email,
+      `SELECT lr.*, u.name as user_name, u.nip as user_nip, u.email as user_email, u.divisi,
               r.name as reviewer_name
        FROM leave_requests lr
        LEFT JOIN users u ON lr.user_id = u.id
@@ -210,12 +216,15 @@ const LeaveRequest = {
    * @param {number} id
    * @param {string} status - 'approved' atau 'rejected'
    * @param {number} reviewedBy - ID admin yang mereview
+   * @param {string|null} rejectReason - Alasan penolakan jika ditolak
    * @returns {Promise<object>}
    */
-  updateStatus: async (id, status, reviewedBy) => {
+  updateStatus: async (id, status, reviewedBy, rejectReason = null) => {
     const [result] = await pool.execute(
-      `UPDATE leave_requests SET status = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?`,
-      [status, reviewedBy, id]
+      `UPDATE leave_requests 
+       SET status = ?, reviewed_by = ?, reviewed_at = NOW(), reject_reason = ? 
+       WHERE id = ?`,
+      [status, reviewedBy, rejectReason || null, id]
     );
     return result;
   },

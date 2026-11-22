@@ -8,8 +8,12 @@ const fs = require('fs');
 
 /**
  * Controller untuk mengelola permohonan izin karyawan.
- * Logika izin: langsung otomatis diterima tanpa perlu persetujuan admin,
- * dan langsung tercatat pada tabel attendance_logs (status: 'Izin').
+ * Alur approval izin:
+ * 1. Karyawan mengajukan izin via mobile -> status: 'pending'.
+ * 2. Belum masuk ke attendance_logs sebelum disetujui.
+ * 3. Web admin dapat menyetujui (approve) atau menolak (reject) izin dengan lampiran yang bisa dilihat.
+ * 4. Jika disetujui (approve) -> status menjadi 'approved' dan tercatat ke attendance_logs.
+ * 5. Jika ditolak (reject) -> status menjadi 'rejected' dengan catatan alasan penolakan (reject_reason).
  */
 const leaveController = {
   /**
@@ -56,33 +60,18 @@ const leaveController = {
         attachmentPath = `uploads/leaves/${req.file.filename}`;
       }
 
-      // Simpan izin dengan status auto-approved
+      // Simpan izin dengan status 'pending' (menunggu persetujuan admin)
       const leave = await LeaveRequest.create({
         user_id: userId,
         reason: reason.trim(),
         description: description ? description.trim() : null,
         attachment: attachmentPath,
-        status: 'approved',
+        status: 'pending',
       });
-
-      // Otomatis masukkan log ke attendance_logs sebagai 'Izin' langsung
-      const noteText = description && description.trim()
-        ? `Izin: ${reason.trim()} - ${description.trim()}`
-        : `Izin: ${reason.trim()}`;
-
-      try {
-        await Attendance.createLeaveLog({
-          user_id: userId,
-          notes: noteText,
-          attachment: attachmentPath,
-        });
-      } catch (logErr) {
-        console.warn('Gagal mencatat log izin ke attendance_logs:', logErr.message);
-      }
 
       return res.status(201).json({
         success: true,
-        message: 'Permohonan izin berhasil dikirim dan otomatis disetujui.',
+        message: 'Permohonan izin berhasil diajukan dan sedang menunggu persetujuan admin.',
         data: leave,
       });
     } catch (error) {
@@ -170,30 +159,31 @@ const leaveController = {
         attachment: attachmentPath,
       });
 
-      // Sinkronkan catatan di attendance_logs untuk izin hari ini
-      try {
-        const { startOfDay, endOfDay } = getTodayRangeWIB();
-        const updatedReason = (reason || existingLeave.reason).trim();
-        const updatedDesc = description !== undefined ? description?.trim() : existingLeave.description;
-        const noteText = updatedDesc ? `Izin: ${updatedReason} - ${updatedDesc}` : `Izin: ${updatedReason}`;
+      // Jika izin yang diedit sebelumnya ditolak, reset statusnya ke pending agar bisa direview ulang
+      if (existingLeave.status === 'rejected') {
+        await pool.execute(
+          `UPDATE leave_requests SET status = 'pending', reject_reason = NULL, reviewed_by = NULL, reviewed_at = NULL WHERE id = ?`,
+          [leaveId]
+        );
+      }
 
+      // Jika sudah approved, perbarui juga di attendance_logs
+      if (existingLeave.status === 'approved') {
         try {
+          const { startOfDay, endOfDay } = getTodayRangeWIB();
+          const updatedReason = (reason || existingLeave.reason).trim();
+          const updatedDesc = description !== undefined ? description?.trim() : existingLeave.description;
+          const noteText = updatedDesc ? `Izin: ${updatedReason} - ${updatedDesc}` : `Izin: ${updatedReason}`;
+
           await pool.execute(
             `UPDATE attendance_logs 
              SET notes = ?, status = 'Izin', attachment = ? 
              WHERE user_id = ? AND (status = 'Izin' OR notes LIKE 'Izin:%') AND created_at >= ? AND created_at <= ?`,
             [noteText, attachmentPath || null, existingLeave.user_id, startOfDay, endOfDay]
           );
-        } catch (_) {
-          await pool.execute(
-            `UPDATE attendance_logs 
-             SET notes = ?, status = 'Izin' 
-             WHERE user_id = ? AND (status = 'Izin' OR notes LIKE 'Izin:%') AND created_at >= ? AND created_at <= ?`,
-            [noteText, existingLeave.user_id, startOfDay, endOfDay]
-          );
+        } catch (logErr) {
+          console.warn('Gagal memperbarui catatan izin di attendance_logs:', logErr.message);
         }
-      } catch (logErr) {
-        console.warn('Gagal memperbarui catatan izin di attendance_logs:', logErr.message);
       }
 
       const updated = await LeaveRequest.findById(leaveId);
@@ -308,6 +298,7 @@ const leaveController = {
 
   /**
    * PATCH /api/leaves/:id/approve - Setujui izin (admin)
+   * Mengubah status menjadi 'approved' dan mencatatnya ke attendance_logs sebagai 'Izin'
    */
   approve: async (req, res) => {
     try {
@@ -322,21 +313,33 @@ const leaveController = {
         });
       }
 
-      await LeaveRequest.updateStatus(id, 'approved', adminId);
+      // Update status menjadi 'approved'
+      await LeaveRequest.updateStatus(id, 'approved', adminId, null);
 
-      // Pastikan log presensi di attendance_logs tercatat (hindari duplikasi)
+      // Catat log presensi di attendance_logs dengan status 'Izin'
       try {
         const [existingLog] = await pool.execute(
           `SELECT id FROM attendance_logs 
            WHERE user_id = ? AND status = 'Izin' AND DATE(created_at) = DATE(?)`,
           [leave.user_id, leave.created_at]
         );
+
+        const noteText = leave.description && leave.description.trim()
+          ? `Izin: ${leave.reason} - ${leave.description}`
+          : `Izin: ${leave.reason}`;
+
         if (existingLog.length === 0) {
           await Attendance.createLeaveLog({
             user_id: leave.user_id,
-            notes: `Izin: ${leave.reason || 'Izin'}`,
+            notes: noteText,
             attachment: leave.attachment,
+            created_at: leave.created_at,
           });
+        } else {
+          await pool.execute(
+            `UPDATE attendance_logs SET notes = ?, attachment = ? WHERE id = ?`,
+            [noteText, leave.attachment, existingLog[0].id]
+          );
         }
       } catch (logErr) {
         console.warn('Gagal mencatat log izin ke attendance_logs:', logErr.message);
@@ -357,11 +360,13 @@ const leaveController = {
 
   /**
    * PATCH /api/leaves/:id/reject - Tolak izin (admin)
+   * Menerima reject_reason dari req.body
    */
   reject: async (req, res) => {
     try {
       const id = parseInt(req.params.id, 10);
       const adminId = req.user.id;
+      const { reject_reason } = req.body;
 
       const leave = await LeaveRequest.findById(id);
       if (!leave) {
@@ -371,11 +376,24 @@ const leaveController = {
         });
       }
 
-      await LeaveRequest.updateStatus(id, 'rejected', adminId);
+      // Update status menjadi 'rejected' dengan reject_reason
+      await LeaveRequest.updateStatus(id, 'rejected', adminId, reject_reason || null);
+
+      // Jika sebelumnya pernah tercatat di attendance_logs, hapus catatan izin tersebut
+      try {
+        await pool.execute(
+          `DELETE FROM attendance_logs 
+           WHERE user_id = ? AND status = 'Izin' AND DATE(created_at) = DATE(?)`,
+          [leave.user_id, leave.created_at]
+        );
+      } catch (logErr) {
+        console.warn('Gagal menghapus log izin dari attendance_logs saat ditolak:', logErr.message);
+      }
 
       return res.status(200).json({
         success: true,
         message: 'Permohonan izin berhasil ditolak.',
+        reject_reason: reject_reason || null,
       });
     } catch (error) {
       console.error('Error rejecting leave:', error);

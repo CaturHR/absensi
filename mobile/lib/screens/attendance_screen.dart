@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/attendance_service.dart';
 import '../widgets/liquid_glass.dart';
 
@@ -13,6 +14,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   TodayAttendanceStatus? _todayStatus;
   bool _isLoading = true;
   bool _isActionLoading = false;
+  String _loadingMessage = 'Memproses...';
 
   @override
   void initState() {
@@ -35,6 +37,40 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Memperoleh lokasi GPS perangkat (Latitude & Longitude)
+  Future<Position?> _determinePosition() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        // Layanan lokasi dinonaktifkan di perangkat
+        debugPrint('GPS location services are disabled.');
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          debugPrint('GPS location permissions are denied');
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('GPS location permissions are permanently denied');
+        return null;
+      }
+
+      // Ambil posisi terkini dengan timeout 8 detik
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 8),
+      );
+    } catch (e) {
+      debugPrint('Error getting GPS location: $e');
+      return null;
     }
   }
 
@@ -61,8 +97,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ),
         content: Text(
           isClockIn
-              ? 'Apakah Anda ingin melakukan Clock In (Absen Masuk) sekarang?'
-              : 'Apakah Anda ingin melakukan Clock Out (Absen Pulang) sekarang?',
+              ? 'Apakah Anda ingin melakukan Clock In (Absen Masuk) sekarang? Lokasi GPS Anda akan dicatat otomatis.'
+              : 'Apakah Anda ingin melakukan Clock Out (Absen Pulang) sekarang? Lokasi GPS Anda akan dicatat otomatis.',
         ),
         actions: [
           TextButton(
@@ -84,10 +120,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     if (confirm != true) return;
 
-    setState(() => _isActionLoading = true);
+    setState(() {
+      _isActionLoading = true;
+      _loadingMessage = 'Mendapatkan lokasi GPS...';
+    });
 
     try {
-      final result = await AttendanceService.submitAttendance(type: type);
+      // 1. Ambil koordinat GPS
+      final position = await _determinePosition();
+
+      if (mounted) {
+        setState(() {
+          _loadingMessage = 'Mengirim presensi ke server...';
+        });
+      }
+
+      // 2. Kirim ke backend beserta koordinat lokasi
+      final result = await AttendanceService.submitAttendance(
+        type: type,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+      );
 
       if (!mounted) return;
 
@@ -122,6 +175,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
+                if (position != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.location_on, size: 14, color: Color(0xFF365C4A)),
+                      const SizedBox(width: 4),
+                      Text(
+                        'GPS: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}',
+                        style: const TextStyle(fontSize: 11, color: Colors.black45),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -170,7 +237,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget build(BuildContext context) {
     final bool hasClockedIn = _todayStatus?.hasClockedIn ?? false;
     final bool hasClockedOut = _todayStatus?.hasClockedOut ?? false;
-    final bool hasLeave = _todayStatus?.hasLeaveToday ?? false;
+    final bool hasLeaveApproved = _todayStatus?.hasLeaveToday ?? false;
+    final String? leaveStatus = _todayStatus?.leaveStatus;
+    final bool isLeavePending = leaveStatus == 'pending';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -251,7 +320,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 ),
                                 const Divider(height: 24, thickness: 1, color: Color(0xFFF1F5F9)),
 
-                                if (hasLeave) ...[
+                                if (hasLeaveApproved) ...[
+                                  // Izin Disetujui
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFECFDF5),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.assignment_turned_in, color: Color(0xFF059669)),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            'Izin Disetujui: ${_todayStatus?.leaveReason ?? "Izin"}. Anda tercatat izin untuk hari ini.',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF065F46),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else if (isLeavePending) ...[
+                                  // Izin Masih Menunggu Persetujuan Admin
                                   Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
@@ -261,11 +357,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.assignment_turned_in, color: Color(0xFFB45309)),
+                                        const Icon(Icons.pending_actions_rounded, color: Color(0xFFB45309)),
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
-                                            'Anda tercatat Izin hari ini (${_todayStatus?.leaveReason ?? "Izin"}).',
+                                            'Izin Diajukan (${_todayStatus?.leaveReason ?? "Izin"}): Sedang menunggu persetujuan admin.',
                                             style: const TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w600,
@@ -276,7 +372,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                       ],
                                     ),
                                   ),
-                                ] else ...[
+                                  const SizedBox(height: 12),
+                                ],
+
+                                if (!hasLeaveApproved) ...[
                                   // Row Jam Masuk & Jam Pulang
                                   Row(
                                     children: [
@@ -381,7 +480,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           // ──────────────────────────────────────────────
                           // Tombol Clock In & Clock Out
                           // ──────────────────────────────────────────────
-                          if (!hasLeave) ...[
+                          if (!hasLeaveApproved) ...[
                             // Tombol 1: CLOCK IN
                             SizedBox(
                               width: double.infinity,
@@ -400,10 +499,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   ),
                                 ),
                                 child: _isActionLoading
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    ? Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _loadingMessage,
+                                            style: const TextStyle(fontSize: 14, color: Colors.white),
+                                          ),
+                                        ],
                                       )
                                     : Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
@@ -448,10 +557,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   ),
                                 ),
                                 child: _isActionLoading
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    ? Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _loadingMessage,
+                                            style: const TextStyle(fontSize: 14, color: Colors.white),
+                                          ),
+                                        ],
                                       )
                                     : Row(
                                         mainAxisAlignment: MainAxisAlignment.center,

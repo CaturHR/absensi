@@ -1,21 +1,23 @@
 const Attendance = require('../models/Attendance');
+const Location = require('../models/Location');
+const geocoder = require('../utils/geocoder');
 
 /**
  * AttendanceController - Menangani proses absensi (Clock In & Clock Out),
- * riwayat absensi, dan melihat log absensi.
- *
- * Tanpa AI & Tanpa Lokasi (Hanya tombol Clock In dan Clock Out).
+ * koordinat GPS, reverse geocoding ke alamat lengkap, riwayat absensi, dan log absensi.
  */
 const attendanceController = {
   /**
    * POST /api/attendance
-   * Submit absensi: Clock In atau Clock Out.
-   * Body: { type: 'in' | 'out' }
+   * Submit absensi: Clock In atau Clock Out dengan GPS lokasi.
+   * Body: { type: 'in' | 'out', latitude?: number, longitude?: number }
    */
   submitAttendance: async (req, res, next) => {
     try {
       const userId = req.user.id;
       const type = (req.body.type || 'in').toLowerCase().trim();
+      const latitude = req.body.latitude !== undefined && req.body.latitude !== null ? parseFloat(req.body.latitude) : null;
+      const longitude = req.body.longitude !== undefined && req.body.longitude !== null ? parseFloat(req.body.longitude) : null;
 
       if (!['in', 'out'].includes(type)) {
         return res.status(400).json({
@@ -27,13 +29,43 @@ const attendanceController = {
       // Ambil status absensi hari ini
       const todayStatus = await Attendance.getTodayStatus(userId);
 
-      // Jika user sudah izin hari ini, tidak bisa clock in atau clock out
+      // Jika user sudah memiliki izin yang disetujui hari ini, tidak bisa clock in atau clock out
       if (todayStatus.hasLeaveToday) {
         return res.status(400).json({
           success: false,
-          message: 'Anda sudah memiliki izin yang tercatat hari ini, sehingga tidak dapat melakukan absensi.',
+          message: 'Anda sudah memiliki izin yang disetujui hari ini, sehingga tidak dapat melakukan absensi.',
         });
       }
+
+      // Helper untuk simpan lokasi & reverse geocoding
+      const saveLocationIfPresent = async (attendanceId) => {
+        if (latitude !== null && longitude !== null && !isNaN(latitude) && !isNaN(longitude)) {
+          try {
+            // Lakukan reverse geocoding untuk mendapatkan komponen alamat
+            const geoData = await geocoder.reverseGeocode(latitude, longitude);
+            
+            const savedLoc = await Location.create({
+              attendance_id: attendanceId,
+              latitude,
+              longitude,
+              alamat: geoData.alamat,
+              jalan: geoData.jalan,
+              nomor: geoData.nomor,
+              rt: geoData.rt,
+              rw: geoData.rw,
+              kelurahan: geoData.kelurahan,
+              kecamatan: geoData.kecamatan,
+              kabupaten: geoData.kabupaten,
+              provinsi: geoData.provinsi,
+            });
+
+            return savedLoc;
+          } catch (geoErr) {
+            console.warn('⚠️ Gagal menyimpan lokasi absensi:', geoErr.message);
+          }
+        }
+        return null;
+      };
 
       // ──────────────────────────────────────────────
       // Clock In
@@ -51,6 +83,9 @@ const attendanceController = {
           user_id: userId,
           status: 'Clock In',
         });
+
+        // Simpan data lokasi GPS jika ada
+        const locationData = await saveLocationIfPresent(log.id);
 
         const now = new Date();
         const timeStr = now
@@ -70,6 +105,7 @@ const attendanceController = {
             status: 'Clock In',
             time: timeStr,
             timestamp: now.toISOString(),
+            location: locationData,
           },
         });
       }
@@ -98,6 +134,9 @@ const attendanceController = {
           status: 'Clock Out',
         });
 
+        // Simpan data lokasi GPS jika ada
+        const locationData = await saveLocationIfPresent(log.id);
+
         const now = new Date();
         const timeStr = now
           .toLocaleTimeString('id-ID', {
@@ -116,6 +155,7 @@ const attendanceController = {
             status: 'Clock Out',
             time: timeStr,
             timestamp: now.toISOString(),
+            location: locationData,
           },
         });
       }
@@ -171,7 +211,7 @@ const attendanceController = {
 
   /**
    * GET /api/attendance
-   * Ambil semua log absensi (Admin Web: hanya melihat log absen).
+   * Ambil semua log absensi (Admin Web: melihat log absen beserta lokasi GPS & alamat lengkap).
    */
   getAllAttendance: async (req, res, next) => {
     try {

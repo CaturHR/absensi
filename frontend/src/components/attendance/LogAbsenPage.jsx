@@ -13,6 +13,7 @@ import {
   ExternalLink,
   X,
   Eye,
+  MapPin,
   Image as ImageIcon
 } from 'lucide-react';
 import { fetchAttendanceLogs } from '../../services/api';
@@ -86,7 +87,8 @@ export default function LogAbsenPage({ onBack, onLogout }) {
     const name = (item.user_name || '').toLowerCase();
     const nip = (item.user_nip || '').toLowerCase();
     const divisi = (item.divisi || '').toLowerCase();
-    return name.includes(query) || nip.includes(query) || divisi.includes(query);
+    const alamat = (item.alamat || '').toLowerCase();
+    return name.includes(query) || nip.includes(query) || divisi.includes(query) || alamat.includes(query);
   });
 
   const formatDateTime = (dateStr) => {
@@ -126,7 +128,6 @@ export default function LogAbsenPage({ onBack, onLogout }) {
     const s = (status || '').trim().toLowerCase();
     const isNoteIzin = (notes || '').trim().toLowerCase().startsWith('izin');
 
-    // Cek status izin terlebih dahulu (hindari false-match karena 'izin' berakhiran 'in')
     if (s === 'izin' || s.includes('izin') || isNoteIzin) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
@@ -156,6 +157,35 @@ export default function LogAbsenPage({ onBack, onLogout }) {
         {status}
       </span>
     );
+  };
+
+  // Format detail alamat (jalan, nomor, RT/RW, kelurahan, kecamatan, kabupaten, provinsi)
+  const formatLocation = (log) => {
+    if (!log) return '-';
+    
+    // Jika ada komponen alamat individual
+    const parts = [];
+    if (log.jalan) {
+      parts.push(log.nomor ? `Jl. ${log.jalan} No. ${log.nomor}` : `Jl. ${log.jalan}`);
+    }
+    if (log.rt || log.rw) {
+      parts.push(`RT ${log.rt || '-'}/RW ${log.rw || '-'}`);
+    }
+    if (log.kelurahan) parts.push(`Kel. ${log.kelurahan}`);
+    if (log.kecamatan) parts.push(`Kec. ${log.kecamatan}`);
+    if (log.kabupaten) parts.push(log.kabupaten);
+    if (log.provinsi) parts.push(`Prov. ${log.provinsi}`);
+
+    if (parts.length > 0) {
+      return parts.join(', ');
+    }
+    if (log.alamat && log.alamat.trim() !== '') {
+      return log.alamat;
+    }
+    if (log.latitude && log.longitude) {
+      return `Koordinat: ${parseFloat(log.latitude).toFixed(6)}, ${parseFloat(log.longitude).toFixed(6)}`;
+    }
+    return '-';
   };
 
   const handleOpenAttachment = (log) => {
@@ -200,7 +230,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
               </div>
               <div>
                 <h1 className="text-base font-bold text-gray-900 leading-tight">Log Absensi Karyawan</h1>
-                <p className="text-xs text-gray-500">Melihat catatan Clock In, Clock Out, dan Izin</p>
+                <p className="text-xs text-gray-500">Melihat catatan Clock In, Clock Out, dan Lokasi GPS</p>
               </div>
             </div>
           </div>
@@ -228,7 +258,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Cari berdasarkan nama atau NIP..."
+                placeholder="Cari berdasarkan nama, NIP, atau lokasi..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1e5a8a]/20 focus:border-[#1e5a8a] transition-all"
@@ -298,12 +328,13 @@ export default function LogAbsenPage({ onBack, onLogout }) {
             <table className="w-full text-left text-sm">
               <thead className="bg-gray-50/80 text-gray-600 text-xs font-semibold uppercase tracking-wider border-b border-gray-100">
                 <tr>
-                  <th className="py-3.5 px-4 w-14 text-center">No</th>
+                  <th className="py-3.5 px-4 w-12 text-center">No</th>
                   <th className="py-3.5 px-4">Nama Pegawai</th>
                   <th className="py-3.5 px-4">NIP</th>
                   <th className="py-3.5 px-4">Divisi</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4">Waktu Absensi</th>
+                  <th className="py-3.5 px-4 min-w-[240px]">Lokasi GPS (Jalan, RT/RW, Kel, Kec, Kab, Prov)</th>
                   <th className="py-3.5 px-4">Catatan</th>
                   <th className="py-3.5 px-4 text-center">Lampiran</th>
                 </tr>
@@ -311,7 +342,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="py-16 text-center text-gray-400">
+                    <td colSpan={9} className="py-16 text-center text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <div className="w-6 h-6 border-2 border-[#1e5a8a] border-t-transparent rounded-full animate-spin" />
                         <span className="text-xs font-medium">Memuat data log absensi...</span>
@@ -320,7 +351,7 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                   </tr>
                 ) : filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-16 text-center text-gray-400">
+                    <td colSpan={9} className="py-16 text-center text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <FileText size={36} className="text-gray-300" />
                         <span className="text-sm font-medium text-gray-500">Tidak ada log absensi ditemukan</span>
@@ -331,6 +362,9 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                 ) : (
                   filteredLogs.map((log, index) => {
                     const rowNumber = (currentPage - 1) * (pageSize === 'all' ? 0 : parseInt(pageSize, 10)) + index + 1;
+                    const locationText = formatLocation(log);
+                    const hasCoordinates = log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined && log.latitude !== 0;
+
                     return (
                       <tr key={log.id} className="hover:bg-blue-50/40 transition-colors">
                         <td className="py-3.5 px-4 text-center text-xs font-medium text-gray-500">
@@ -360,6 +394,33 @@ export default function LogAbsenPage({ onBack, onLogout }) {
                         </td>
                         <td className="py-3.5 px-4 font-mono text-xs text-gray-600 whitespace-nowrap">
                           {formatDateTime(log.created_at)}
+                        </td>
+                        {/* Kolom Lokasi GPS */}
+                        <td className="py-3.5 px-4 text-xs text-gray-700">
+                          {log.status === 'Izin' ? (
+                            <span className="text-gray-400 text-xs italic">-</span>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-start gap-1.5">
+                                <MapPin size={14} className="text-[#1e5a8a] shrink-0 mt-0.5" />
+                                <span className="leading-snug text-gray-800 font-medium">
+                                  {locationText}
+                                </span>
+                              </div>
+                              {hasCoordinates && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${log.latitude},${log.longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] text-[#1e5a8a] hover:text-blue-800 hover:underline pl-5 font-medium"
+                                  title="Buka titik koordinat di Google Maps"
+                                >
+                                  <ExternalLink size={11} />
+                                  <span>Lihat di Maps ({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-xs text-gray-600">
                           <div className="flex flex-col gap-1">

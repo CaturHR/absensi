@@ -38,6 +38,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
   int? _existingLeaveId;
   String? _existingAttachment;
   String? _existingLeaveStatus;
+  String? _existingRejectReason;
   bool _removeAttachment = false;
 
   final ImagePicker _picker = ImagePicker();
@@ -72,6 +73,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
             _isEditMode = true;
             _existingLeaveId = (leave['id'] as num?)?.toInt();
             _existingLeaveStatus = leave['status']?.toString();
+            _existingRejectReason = leave['reject_reason']?.toString();
             _reasonController.text = leave['reason']?.toString() ?? '';
             _descriptionController.text = leave['description']?.toString() ?? '';
             _existingAttachment = leave['attachment']?.toString();
@@ -79,6 +81,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
             _isEditMode = false;
             _existingLeaveId = null;
             _existingAttachment = null;
+            _existingRejectReason = null;
           }
         });
       }
@@ -242,8 +245,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
         if (response.statusCode == 201 || response.statusCode == 200) {
           final isEdit = _isEditMode;
           _showSuccessDialog(
-            title: isEdit ? 'Izin Diperbarui!' : 'Izin Diterima!',
-            message: data['message'] ?? (isEdit ? 'Permohonan izin berhasil diperbarui.' : 'Permohonan izin berhasil dikirim dan otomatis disetujui.'),
+            title: isEdit ? 'Izin Diperbarui!' : 'Izin Diajukan!',
+            message: data['message'] ?? (isEdit ? 'Permohonan izin berhasil diperbarui.' : 'Permohonan izin berhasil dikirim dan sedang menunggu persetujuan admin.'),
           );
           await _loadTodayLeaveStatus();
         } else {
@@ -525,9 +528,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                         ],
                                       ),
                                       const SizedBox(height: 4),
-                                      const Text(
-                                        'Izin Anda hari ini telah diterima secara otomatis dan tercatat pada sistem presensi. Anda dapat mengubah alasan, keterangan, atau lampiran jika diperlukan.',
-                                        style: TextStyle(
+                                      Text(
+                                        _existingLeaveStatus == 'approved'
+                                            ? 'Izin Anda hari ini telah disetujui admin dan tercatat pada sistem presensi.'
+                                            : (_existingLeaveStatus == 'rejected'
+                                                ? 'Izin Anda ditolak admin${_existingRejectReason != null && _existingRejectReason!.isNotEmpty ? ": $_existingRejectReason" : ""}. Anda dapat memperbarui data izin dan mengajukannya kembali.'
+                                                : 'Izin Anda hari ini telah diajukan dan sedang menunggu persetujuan admin. Anda masih dapat mengubah data alasan atau lampiran jika diperlukan.'),
+                                        style: const TextStyle(
                                           color: Color(0xFF78350F),
                                           fontSize: 11.5,
                                           height: 1.4,

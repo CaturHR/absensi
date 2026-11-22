@@ -2,8 +2,8 @@ const { pool } = require('../config/database');
 const { getTodayRangeWIB } = require('../utils/dateHelper');
 
 /**
- * Model Attendance - Operasi database untuk tabel attendance_logs.
- * Disederhanakan: tanpa geofencing / koordinat lokasi, tanpa verifikasi wajah AI / foto.
+ * Model Attendance - Operasi database untuk tabel attendance_logs & locations.
+ * Mendukung penyimpanan koordinat GPS dan detail alamat (jalan, nomor, RT, RW, kelurahan, kecamatan, kabupaten, provinsi).
  */
 const Attendance = {
   /**
@@ -12,7 +12,6 @@ const Attendance = {
    * @returns {Promise<object>}
    */
   create: async ({ user_id, status = 'Clock In', notes = null }) => {
-    // Memasukkan log absensi (dengan fallback 0 / NULL untuk kompatibilitas jika kolom lama masih ada)
     const [result] = await pool.execute(
       `INSERT INTO attendance_logs (user_id, status, notes) VALUES (?, ?, ?)`,
       [user_id, status, notes || null]
@@ -27,15 +26,23 @@ const Attendance = {
   },
 
   /**
-   * Buat log presensi izin ketika permohonan disetujui
+   * Buat log presensi izin ketika permohonan disetujui oleh admin
    */
-  createLeaveLog: async ({ user_id, notes = 'Izin disetujui', attachment = null }) => {
+  createLeaveLog: async ({ user_id, notes = 'Izin disetujui', attachment = null, created_at = null }) => {
     try {
-      const [result] = await pool.execute(
-        `INSERT INTO attendance_logs (user_id, status, notes, attachment) VALUES (?, 'Izin', ?, ?)`,
-        [user_id, notes, attachment || null]
-      );
-      return { id: result.insertId, user_id, status: 'Izin', attachment };
+      if (created_at) {
+        const [result] = await pool.execute(
+          `INSERT INTO attendance_logs (user_id, status, notes, attachment, created_at) VALUES (?, 'Izin', ?, ?, ?)`,
+          [user_id, notes, attachment || null, created_at]
+        );
+        return { id: result.insertId, user_id, status: 'Izin', attachment };
+      } else {
+        const [result] = await pool.execute(
+          `INSERT INTO attendance_logs (user_id, status, notes, attachment) VALUES (?, 'Izin', ?, ?)`,
+          [user_id, notes, attachment || null]
+        );
+        return { id: result.insertId, user_id, status: 'Izin', attachment };
+      }
     } catch (err) {
       // Fallback jika kolom attachment belum ada
       const [result] = await pool.execute(
@@ -48,7 +55,8 @@ const Attendance = {
 
   /**
    * Ambil semua log absensi (untuk admin web).
-   * Join dengan tabel users untuk info nama, NIP, divisi, email.
+   * Join dengan tabel users untuk info nama, NIP, divisi, email
+   * dan tabel locations untuk koordinat GPS & detail alamat.
    * @param {object} filters - { page, limit, user_id, status, date_from, date_to }
    * @returns {Promise<{ data: Array, total: number, page: number, totalPages: number }>}
    */
@@ -106,9 +114,21 @@ const Attendance = {
                   AND lr.attachment != ''
                 ORDER BY lr.id DESC 
                 LIMIT 1
-              ) as attachment
+              ) as attachment,
+              loc.latitude,
+              loc.longitude,
+              loc.alamat,
+              loc.jalan,
+              loc.nomor,
+              loc.rt,
+              loc.rw,
+              loc.kelurahan,
+              loc.kecamatan,
+              loc.kabupaten,
+              loc.provinsi
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
+       LEFT JOIN locations loc ON loc.attendance_id = a.id
        ${whereClause}
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -153,8 +173,20 @@ const Attendance = {
                   AND lr.attachment != ''
                 ORDER BY lr.id DESC 
                 LIMIT 1
-              ) as attachment
+              ) as attachment,
+              loc.latitude,
+              loc.longitude,
+              loc.alamat,
+              loc.jalan,
+              loc.nomor,
+              loc.rt,
+              loc.rw,
+              loc.kelurahan,
+              loc.kecamatan,
+              loc.kabupaten,
+              loc.provinsi
        FROM attendance_logs a
+       LEFT JOIN locations loc ON loc.attendance_id = a.id
        WHERE a.user_id = ? AND (a.status IN ('Clock In', 'Clock Out', 'Izin') OR a.notes LIKE 'Izin:%')
        ORDER BY a.created_at DESC
        LIMIT ? OFFSET ?`,
@@ -192,9 +224,21 @@ const Attendance = {
                   AND lr.attachment != ''
                 ORDER BY lr.id DESC 
                 LIMIT 1
-              ) as attachment
+              ) as attachment,
+              loc.latitude,
+              loc.longitude,
+              loc.alamat,
+              loc.jalan,
+              loc.nomor,
+              loc.rt,
+              loc.rw,
+              loc.kelurahan,
+              loc.kecamatan,
+              loc.kabupaten,
+              loc.provinsi
        FROM attendance_logs a
        LEFT JOIN users u ON a.user_id = u.id
+       LEFT JOIN locations loc ON loc.attendance_id = a.id
        WHERE a.id = ?`,
       [id]
     );
@@ -228,7 +272,7 @@ const Attendance = {
 
     // Cek juga permohonan izin dari tabel leave_requests hari ini
     const [leaveRows] = await pool.execute(
-      `SELECT id, user_id, reason, description, attachment, status, created_at FROM leave_requests
+      `SELECT id, user_id, reason, description, attachment, status, reject_reason, created_at FROM leave_requests
        WHERE user_id = ? 
          AND created_at >= ? 
          AND created_at <= ? 
@@ -236,7 +280,10 @@ const Attendance = {
       [userId, startOfDay, endOfDay]
     );
     const todayLeaveRequest = leaveRows[0] || null;
-    const hasLeaveToday = (todayLeaveRequest && todayLeaveRequest.status !== 'rejected') || !!leaveLog;
+    
+    // Izin hanya dianggap aktif hari ini jika statusnya 'approved' atau sudah tercatat di attendance_logs
+    const isLeaveApproved = (todayLeaveRequest && todayLeaveRequest.status === 'approved') || !!leaveLog;
+    const hasLeaveToday = isLeaveApproved;
 
     const formatClockTime = (rec) => {
       if (!rec || !rec.created_at) return null;
